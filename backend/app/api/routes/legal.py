@@ -1,13 +1,12 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import Optional, Literal
 import base64
 import io
 import wave
 import os
 from openai import OpenAI
 from app.core.config import settings
+from app.schemas import AudioResponse, ContextResponse, ModelRequest
 
 router = APIRouter()
 
@@ -42,26 +41,6 @@ Legal Context History:
 - Next steps: Medical evaluation completion, witness interviews scheduled
 - Documents reviewed: Police report, medical records, insurance policy
 """
-
-class ContextResponse(BaseModel):
-    context: str
-
-class AudioResponse(BaseModel):
-    message: str
-    audio_data: Optional[str] = None  # Base64 encoded audio
-    model_used: str
-
-class ModelRequest(BaseModel):
-    model: Literal[
-        "higgs-audio-generation-Hackathon",
-        "Qwen3-32B-thinking-Hackathon", 
-        "Qwen3-32B-non-thinking-Hackathon",
-        "Qwen3-14B-Hackathon",
-        "higgs-audio-understanding-Hackathon",
-        "Qwen3-Omni-30B-A3B-Thinking-Hackathon"
-    ]
-    question: str
-    context: Optional[str] = None
 
 @router.get("/context", response_model=ContextResponse)
 async def get_context_history():
@@ -113,7 +92,7 @@ async def upload_audio(audio_file: UploadFile = File(...)):
             "transcribed_text": transcribed_text,
             "filename": audio_file.filename
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
 
@@ -170,8 +149,7 @@ async def process_with_model(request: ModelRequest):
         
         return AudioResponse(
             message=response_content,
-            audio_data=audio_data,
-            model_used=request.model
+            audio_data=audio_data
         )
         
     except Exception as e:
