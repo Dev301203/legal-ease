@@ -4,7 +4,45 @@ from typing import Any
 from sqlmodel import Session, select
 
 from app.core.security import get_password_hash, verify_password
-from app.models import Item, ItemCreate, User, UserCreate, UserUpdate
+from app.models import Item, ItemCreate, User, UserCreate, UserUpdate, Case, \
+    Message
+
+
+def get_case_context(session: Session, case_id: int) -> str | None:
+    """Return the context field for a given case_id."""
+    statement = select(Case.context).where(Case.id == case_id)
+    result = session.exec(statement).first()
+    return result
+
+
+
+def get_messages_by_tree(session: Session, tree_id: int) -> list[Message]:
+    """Retrieve messages for a tree_id in hierarchical order (DFS), only selected ones."""
+    statement = select(Message).where(
+        (Message.tree_id == tree_id) & (Message.selected == True)
+    )
+    messages = session.exec(statement).all()
+
+    # Build mapping: parent_id → list of children
+    children_map = {}
+    for msg in messages:
+        children_map.setdefault(msg.parent_id, []).append(msg)
+
+    # Sort children under each parent by id for consistent order
+    for child_list in children_map.values():
+        child_list.sort(key=lambda m: m.id)
+
+    ordered = []
+
+    def dfs(parent_id: int | None = None):
+        for msg in children_map.get(parent_id, []):
+            ordered.append(msg)
+            dfs(msg.id)
+
+    dfs(None)
+    return ordered
+
+
 
 
 def create_user(*, session: Session, user_create: UserCreate) -> User:

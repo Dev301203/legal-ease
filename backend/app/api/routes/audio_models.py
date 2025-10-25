@@ -6,7 +6,11 @@ import wave
 import os
 from openai import OpenAI
 from app.core.config import settings
-from app.schemas import AudioResponse, ContextResponse, ModelRequest
+from app.core.db import engine
+from app.crud import get_case_context, get_messages_by_tree
+from app.schemas import AudioResponse, ContextResponse
+from sqlmodel import Session
+from fastapi import APIRouter, Depends
 
 router = APIRouter()
 
@@ -19,6 +23,28 @@ def get_boson_client():
             detail="Boson API key not configured. Please set BOSON_API_KEY environment variable."
         )
     return OpenAI(api_key=settings.BOSON_API_KEY, base_url="https://hackathon.boson.ai/v1")
+
+
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
+@router.get("/context", response_model=ContextResponse)
+async def get_context_history(case_id: int, tree_id: int, session: Session = Depends(get_session),) -> ContextResponse:
+    """
+    Get the current context history for the legal case.
+    For now, returns a pregenerated string.
+    """
+
+    case_context = get_case_context(session, case_id)
+    messages_history = get_messages_by_tree(session, tree_id)
+
+    context = case_context + messages_history
+    return ContextResponse(context=context)
+
+
 
 @router.post("/upload-audio")
 async def upload_audio(audio_file: UploadFile = File(...)):
