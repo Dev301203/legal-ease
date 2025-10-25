@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 import base64
@@ -8,7 +10,7 @@ from openai import OpenAI
 from app.core.config import settings
 from app.core.db import engine
 from app.crud import get_case_context, get_messages_by_tree
-from app.schemas import AudioResponse, ContextResponse
+from app.schemas import AudioResponse, ContextResponse, messages_to_conversation
 from sqlmodel import Session
 from fastapi import APIRouter, Depends
 
@@ -25,13 +27,12 @@ def get_boson_client():
     return OpenAI(api_key=settings.BOSON_API_KEY, base_url="https://hackathon.boson.ai/v1")
 
 
-
 def get_session():
     with Session(engine) as session:
         yield session
 
 
-@router.get("/context", response_model=ContextResponse)
+@router.get("/context/{case_id}/{tree_id}", response_model=ContextResponse)
 async def get_context_history(case_id: int, tree_id: int, session: Session = Depends(get_session),) -> ContextResponse:
     """
     Get the current context history for the legal case.
@@ -40,9 +41,11 @@ async def get_context_history(case_id: int, tree_id: int, session: Session = Dep
 
     case_context = get_case_context(session, case_id)
     messages_history = get_messages_by_tree(session, tree_id)
+    conversation_json = messages_to_conversation(messages_history).model_dump_json(
+        indent=2)
 
-    context = case_context + messages_history
-    return ContextResponse(context=context)
+    context_str = case_context + conversation_json
+    return ContextResponse(context=context_str)
 
 
 
