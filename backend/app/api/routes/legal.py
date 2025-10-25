@@ -104,21 +104,16 @@ async def process_with_model(request: ModelRequest):
     """
     try:
         # Prepare the context
-        context = request.context or CONTEXT_HISTORY
+        context = request.context or CONTEXT_HISTORY # todo real context here
         
         # Prepare system message based on model type
-        if "audio-generation" in request.model:
-            system_message = (
-                "You are an AI legal assistant designed to convert text into speech.\n"
-                "If the user's message includes a [SPEAKER*] tag, do not read out the tag and generate speech for the following text, using the specified voice.\n"
-                "If no speaker tag is present, select a suitable voice on your own.\n\n"
-                "<|scene_desc_start|>\nAudio is recorded from a quiet room.\n<|scene_desc_end|>"
-            )
-        else:
-            system_message = (
-                "You are an AI legal assistant. Provide helpful, accurate legal information based on the context provided. "
-                "Always remind users that this is not legal advice and they should consult with a qualified attorney."
-            )
+        system_message = (
+            "You are an AI legal assistant designed to convert text into speech.\n"
+            "If the user's message includes a [SPEAKER*] tag, do not read out the tag and generate speech for the following text, using the specified voice.\n"
+            "If no speaker tag is present, select a suitable voice on your own.\n\n"
+            "<|scene_desc_start|>\nAudio is recorded from a quiet room.\n<|scene_desc_end|>"
+        )
+
         
         # Create the conversation
         messages = [

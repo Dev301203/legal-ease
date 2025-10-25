@@ -1,8 +1,12 @@
 from sqlmodel import Session, SQLModel, create_engine
 
+from app.api.routes.audio_models import get_session, get_context_history
 from app.core.db import engine
+from app.crud import get_messages_by_tree, get_case_context
 from app.models import Case, Tree, Message
 from app.core.config import settings
+from app.schemas import messages_to_conversation
+
 
 # Create the DB engine (same as your app)
 
@@ -81,3 +85,15 @@ def create_sample_data():
 
 if __name__ == "__main__":
     create_sample_data()
+
+    # # with Session(engine) as session:
+    # #     messages_history = get_messages_by_tree(session, 1)
+    # #     print(messages_history)
+
+    # with Session(engine) as session:
+    #     messages = get_case_context(session, case_id=1)
+    # #     conversation_json = messages_to_conversation(messages).model_dump_json(
+    # #         indent=2)
+    #     print(messages)
+
+
