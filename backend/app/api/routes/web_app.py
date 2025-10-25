@@ -3,7 +3,8 @@ from sqlmodel import Session, select
 
 from app.api.routes.audio_models import get_session
 from app.crud import get_messages_by_tree, get_selected_messages_between, \
-    get_tree
+    get_tree, delete_messages_after_children, get_message_children, \
+    update_message_selected
 from app.models import Message
 from typing import List, Optional
 
@@ -82,3 +83,35 @@ def get_selected_messages_path(
         for m in messages
     ]
 
+
+@router.delete("/messages/trim-after/{message_id}")
+def trim_messages_after_children(
+    message_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    Delete all messages after the children of the given message.
+    Keeps the given message and its direct children.
+    """
+    try:
+        deleted_count = delete_messages_after_children(session, message_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return {
+        "message": f"Deleted {deleted_count} messages after message {message_id} and its children."
+    }
+
+
+@router.get("/messages/{message_id}/children", response_model=List[Message])
+def get_children(message_id: int, db: Session = Depends(get_session)):
+    """Get all direct children of a message."""
+    children = get_message_children(db, message_id)
+    return children  # returns [] if none found
+
+
+@router.patch("/messages/{message_id}/select", response_model=Message)
+def select_message(message_id: int, db: Session = Depends(get_session)):
+    """Mark a message as selected=True."""
+    message = update_message_selected(db, message_id)
+    return message
