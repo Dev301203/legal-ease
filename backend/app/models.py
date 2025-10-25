@@ -30,7 +30,7 @@ class Message(SQLModel, table=True):
     role: str = Field(default=None) #todo enum
     selected: bool = Field(default=False)
     tree_id: int = Field(foreign_key="tree.id", nullable=False, ondelete="CASCADE")
-    parent_id: int = Field(foreign_key="message.id", nullable=False)
+    parent_id: int = Field(foreign_key="message.id", nullable=True)
 
 class Document(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)

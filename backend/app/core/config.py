@@ -13,7 +13,11 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
+from pathlib import Path
 
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # backend/
+ENV_PATH = BASE_DIR.parent / ".env"  # project-root/.env
 
 def parse_cors(v: Any) -> list[str] | str:
     if isinstance(v, str) and not v.startswith("["):
@@ -26,7 +30,7 @@ def parse_cors(v: Any) -> list[str] | str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
-        env_file="../../../.env",
+        env_file=str(ENV_PATH),
         env_ignore_empty=True,
         extra="ignore",
     )

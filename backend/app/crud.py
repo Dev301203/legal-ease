@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from app.core.security import get_password_hash, verify_password
 from app.models import Item, ItemCreate, User, UserCreate, UserUpdate, Case, \
     Message
+from app.schemas import messages_to_conversation
 
 
 def get_case_context(session: Session, case_id: int) -> str | None:
@@ -40,7 +41,16 @@ def get_messages_by_tree(session: Session, tree_id: int) -> list[Message]:
             dfs(msg.id)
 
     dfs(None)
-    return ordered
+
+
+    conversation_json = messages_to_conversation(ordered).model_dump_json(
+        indent=2)
+
+    return conversation_json
+
+
+
+
 
 
 
