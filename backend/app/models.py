@@ -12,21 +12,31 @@ class UserBase(SQLModel):
     full_name: str | None = Field(default=None, max_length=255)
 
 
-# Properties to receive via API on creation
-class UserCreate(UserBase):
-    password: str = Field(min_length=8, max_length=128)
+class Case(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    name: str = Field(default=None)
+    legal_side: str = Field(default=None)
+    client: str = Field(default=None)
+    context: str = Field(default=None)
 
 
-class UserRegister(SQLModel):
-    email: EmailStr = Field(max_length=255)
-    password: str = Field(min_length=8, max_length=128)
-    full_name: str | None = Field(default=None, max_length=255)
+class Tree(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    case_id: int = Field(foreign_key="case.id", nullable=False, ondelete="CASCADE")
 
+class Message(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    content: str = Field(default=None)
+    role: str = Field(default=None) #todo enum
+    selected: bool = Field(default=False)
+    tree_id: int = Field(foreign_key="tree.id", nullable=False, ondelete="CASCADE")
+    parent_id: int = Field(foreign_key="message.id", nullable=False)
 
-# Properties to receive via API on update, all are optional
-class UserUpdate(UserBase):
-    email: EmailStr | None = Field(default=None, max_length=255)  # type: ignore
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+class Document(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    file_name: str = Field(default=None)
+    file_data: bytes = Field(default=None)
+    case_id: int = Field(foreign_key="case.id", nullable=False, ondelete="CASCADE")
 
 
 class UserUpdateMe(SQLModel):
@@ -92,9 +102,6 @@ class ItemsPublic(SQLModel):
     count: int
 
 
-# Generic message
-class Message(SQLModel):
-    message: str
 
 
 # JSON payload containing access token
@@ -111,3 +118,18 @@ class TokenPayload(SQLModel):
 class NewPassword(SQLModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+class UserCreate(UserBase):
+    password: str = Field(min_length=8, max_length=128)
+
+
+class UserRegister(SQLModel):
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str | None = Field(default=None, max_length=255)
+
+
+# Properties to receive via API on update, all are optional
+class UserUpdate(UserBase):
+    email: EmailStr | None = Field(default=None, max_length=255)  # type: ignore
+    password: str | None = Field(default=None, min_length=8, max_length=128)
