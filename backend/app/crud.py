@@ -48,11 +48,49 @@ def get_messages_by_tree(session: Session, tree_id: int) -> list[Message]:
 
     return conversation_json
 
+def get_tree(session: Session, tree_id: int) -> list[Message]:
+    """
+    Retrieve all messages for a specific tree_id in hierarchical chronological order.
+    Includes both selected and unselected messages.
 
+    The tree alternates between legal and client sides:
+    - One root message (parent_id=None)
+    - Then branches with multiple options (usually 3 per side)
+    """
+    # Fetch all messages for the tree (no selected filter)
+    statement = select(Message).where(Message.tree_id == tree_id)
+    messages = session.exec(statement).all()
 
+    if not messages:
+        return []
 
+    # Build mapping: parent_id → list of children
+    children_map: dict[int | None, list[Message]] = {}
+    for msg in messages:
+        children_map.setdefault(msg.parent_id, []).append(msg)
 
+    # Sort children by creation order (id ascending)
+    for child_list in children_map.values():
+        child_list.sort(key=lambda m: m.id)
 
+    ordered: list[Message] = []
+
+    def dfs(parent_id: int | None = None):
+        """
+        Depth-first traversal from root down, preserving order.
+        Each branch is fully explored before moving to the next.
+        """
+        for msg in children_map.get(parent_id, []):
+            ordered.append(msg)
+            dfs(msg.id)
+
+    # Start traversal from root(s)
+    dfs(None)
+
+    # Optional: sort by id to ensure chronological order (in case of multiple roots)
+    ordered.sort(key=lambda m: m.id)
+
+    return ordered
 
 
 def create_user(*, session: Session, user_create: UserCreate) -> User:
@@ -100,3 +138,22 @@ def create_item(*, session: Session, item_in: ItemCreate, owner_id: uuid.UUID) -
     session.commit()
     session.refresh(db_item)
     return db_item
+
+def get_selected_messages_between(
+    session: Session, start_id: int, end_id: int
+) -> list[Message]:
+    """
+    Retrieve all selected messages between start_id and end_id (inclusive),
+    ordered chronologically by message ID.
+    """
+
+    statement = (
+        select(Message)
+        .where(Message.selected == True)
+        .where(Message.id >= start_id)
+        .where(Message.id <= end_id)
+        .order_by(Message.id)
+    )
+
+    messages = session.exec(statement).all()
+    return messages
