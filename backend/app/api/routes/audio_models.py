@@ -103,20 +103,20 @@ async def transcribe_audio(audio_file: UploadFile = File(...)):
 
 
 @router.get("/get-conversation-audio")
-async def get_conversation_audio(tree_id: int):
+async def get_conversation_audio(tree_id: int, Session = Depends(get_session),):
     """
     Takes a tree_id, for which it gets conversation history messages from the database in order.
     Returns the generated audio file as wav.
     """
 
     try:
-        messages = get_messages_by_tree(tree_id)
+        messages = get_messages_by_tree(Session, tree_id)
 
         tts_string = ""
 
         speaker = 0
         for message in messages:
-            tts_string += "[SPEAKER" + str(speaker) + "] " + message.content + "\n"
+            tts_string += "[SPEAKER" + str(speaker) + "] " + message + "\n"
             speaker = 1-speaker # alternate [SPEAKER0] and [SPEAKER1]
         
 
