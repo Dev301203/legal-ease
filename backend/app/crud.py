@@ -1,4 +1,5 @@
 import uuid
+from fastapi import FastAPI, HTTPException, Depends
 from typing import Any
 
 from sqlmodel import Session, select
@@ -7,6 +8,8 @@ from app.core.security import get_password_hash, verify_password
 from app.models import Item, ItemCreate, User, UserCreate, UserUpdate, Case, \
     Message
 from app.schemas import messages_to_conversation
+from sqlmodel import Session, select, delete
+from typing import List, Optional
 
 
 def get_case_context(session: Session, case_id: int) -> str | None:
@@ -48,11 +51,49 @@ def get_messages_by_tree(session: Session, tree_id: int) -> list[Message]:
 
     return conversation_json
 
+def get_tree(session: Session, tree_id: int) -> list[Message]:
+    """
+    Retrieve all messages for a specific tree_id in hierarchical chronological order.
+    Includes both selected and unselected messages.
 
+    The tree alternates between legal and client sides:
+    - One root message (parent_id=None)
+    - Then branches with multiple options (usually 3 per side)
+    """
+    # Fetch all messages for the tree (no selected filter)
+    statement = select(Message).where(Message.tree_id == tree_id)
+    messages = session.exec(statement).all()
 
+    if not messages:
+        return []
 
+    # Build mapping: parent_id → list of children
+    children_map: dict[int | None, list[Message]] = {}
+    for msg in messages:
+        children_map.setdefault(msg.parent_id, []).append(msg)
 
+    # Sort children by creation order (id ascending)
+    for child_list in children_map.values():
+        child_list.sort(key=lambda m: m.id)
 
+    ordered: list[Message] = []
+
+    def dfs(parent_id: int | None = None):
+        """
+        Depth-first traversal from root down, preserving order.
+        Each branch is fully explored before moving to the next.
+        """
+        for msg in children_map.get(parent_id, []):
+            ordered.append(msg)
+            dfs(msg.id)
+
+    # Start traversal from root(s)
+    dfs(None)
+
+    # Optional: sort by id to ensure chronological order (in case of multiple roots)
+    ordered.sort(key=lambda m: m.id)
+
+    return ordered
 
 
 def create_user(*, session: Session, user_create: UserCreate) -> User:
@@ -100,3 +141,119 @@ def create_item(*, session: Session, item_in: ItemCreate, owner_id: uuid.UUID) -
     session.commit()
     session.refresh(db_item)
     return db_item
+
+def get_selected_messages_between(
+    session: Session, start_id: int, end_id: int
+) -> list[Message]:
+    """
+    Retrieve all selected messages between start_id and end_id (inclusive),
+    ordered chronologically by message ID.
+    """
+
+    statement = (
+        select(Message)
+        .where(Message.selected == True)
+        .where(Message.id >= start_id)
+        .where(Message.id <= end_id)
+        .order_by(Message.id)
+    )
+
+    messages = session.exec(statement).all()
+    return messages
+
+
+
+
+
+def delete_messages_after_children(session: Session, message_id: int) -> int:
+    """
+    Delete all messages in the same tree that come after the last child
+    of the given message. Keeps the message itself and its direct children.
+    Returns the number of deleted rows.
+    """
+
+    # Get the target message
+    target = session.get(Message, message_id)
+    if not target:
+        raise ValueError(f"Message with id={message_id} not found")
+
+    # Get all direct children
+    children_stmt = select(Message).where(Message.parent_id == message_id)
+    children = session.exec(children_stmt).all()
+
+    # Determine the cutoff ID (highest child ID)
+    if children:
+        last_child_id = max(child.id for child in children)
+    else:
+        last_child_id = message_id
+
+    # Delete all messages in this tree with id > last_child_id
+    delete_stmt = delete(Message).where(
+        (Message.tree_id == target.tree_id) & (Message.id > last_child_id)
+    )
+
+    result = session.exec(delete_stmt)
+    session.commit()
+
+    return result.rowcount or 0
+
+
+
+def get_message_children(db: Session, message_id: int) -> List[Message]:
+    """Return all direct children of a message."""
+    query = select(Message).where(Message.parent_id == message_id)
+    results = db.exec(query).all()
+    return results
+
+
+def update_message_selected(db: Session, message_id: int) -> Message:
+    """
+    Mark a message as selected=True only if:
+    - It is a leaf node (has no children)
+    - Its parent (if any) is selected
+    - None of its siblings (same parent_id) are already selected
+    """
+    message = db.get(Message, message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # 1️⃣ Check if message has children (must be a leaf)
+    has_children = db.exec(select(Message).where(Message.parent_id == message_id)).first() is not None
+    if has_children:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot select this message because it has child messages"
+        )
+
+    # 2️⃣ Check if parent exists and is selected (must be on active branch)
+    if message.parent_id is not None:
+        parent = db.get(Message, message.parent_id)
+        if not parent or not parent.selected:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot select this message because its parent is not selected"
+            )
+
+    # 3️⃣ Check if siblings already selected (same parent_id)
+    sibling_query = select(Message).where(
+        (Message.parent_id == message.parent_id)
+        if message.parent_id is not None
+        else Message.parent_id.is_(None),
+        Message.id != message_id,
+        Message.tree_id == message.tree_id,
+        Message.selected == True
+    )
+    selected_sibling = db.exec(sibling_query).first()
+    if selected_sibling:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot select this message because sibling (id={selected_sibling.id}) is already selected"
+        )
+
+    # ✅ Passed all checks
+    message.selected = True
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message
+

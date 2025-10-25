@@ -11,3 +11,6 @@ alembic upgrade head
 
 # Create initial data in DB
 python app/initial_data.py
+
+# Generate dummy data for testing
+python app/core/dummy_generator.py
