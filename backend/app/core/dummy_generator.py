@@ -86,14 +86,14 @@ def create_sample_data():
 if __name__ == "__main__":
     create_sample_data()
 
-    # with Session(engine) as session:
-    #     messages_history = get_messages_by_tree(session, 1)
-    #     print(messages_history)
+    # # with Session(engine) as session:
+    # #     messages_history = get_messages_by_tree(session, 1)
+    # #     print(messages_history)
 
-    with Session(engine) as session:
-        messages = get_case_context(session, case_id=1)
-    #     conversation_json = messages_to_conversation(messages).model_dump_json(
-    #         indent=2)
-        print(messages)
+    # with Session(engine) as session:
+    #     messages = get_case_context(session, case_id=1)
+    # #     conversation_json = messages_to_conversation(messages).model_dump_json(
+    # #         indent=2)
+    #     print(messages)
 
 

@@ -8,10 +8,10 @@ from openai import OpenAI
 from app.core.config import settings
 from app.core.db import engine
 from app.crud import get_case_context, get_messages_by_tree
-from app.schemas import AudioResponse, ContextResponse, TreeResponse, ScenariosTreeResponse
+from app.schemas import TreeResponse, ScenariosTreeResponse
 from app.models import Tree, Message
 from sqlmodel import Session
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 router = APIRouter()
 
@@ -19,6 +19,26 @@ router = APIRouter()
 def get_session():
     with Session(engine) as session:
         yield session
+
+def extract_last_message_from_history(messages_history: str) -> str:
+    """
+    Extract the last message from the conversation history JSON string.
+    Returns the statement of the last conversation turn, or empty string if no history.
+    """
+    if not messages_history or messages_history.strip() == "":
+        return ""
+    
+    try:
+        import json
+        conversation_data = json.loads(messages_history)
+        conversation = conversation_data.get("conversation", [])
+        
+        if conversation:
+            last_turn = conversation[-1]
+            return last_turn.get("statement", "")
+        return ""
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return ""
 
 # Boson AI client configuration
 def get_boson_client():
@@ -30,8 +50,7 @@ def get_boson_client():
         )
     return OpenAI(api_key=settings.BOSON_API_KEY, base_url="https://hackathon.boson.ai/v1")
 
-@router.post("/create-tree", response_model=ScenariosTreeResponse)
-def create_tree(case_background: str, previous_statements: str, simulation_goal: str) -> Dict[str, Any]:
+def create_tree(case_background: str, previous_statements: str, simulation_goal: str, last_message: str = None) -> Dict[str, Any]:
     """
     Create a tree of messages based on the case background and previous statements.
     Uses the Qwen3-32B-thinking-Hackathon model to generate a structured 3-level dialogue tree.
@@ -41,11 +60,18 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
         client = get_boson_client()
         
         # Prepare the complete system message for legal simulation tree generation
+        if last_message:
+            level1_instruction = f"Level 1: Use the provided last message as the Level 1 statement: \"{last_message}\"\n"
+            special_note = f"\nIMPORTANT: The Level 1 node must use exactly this text: \"{last_message}\"\n"
+        else:
+            level1_instruction = "Level 1: An opening statement from the \"Player (My Lawyer)\".\n"
+            special_note = ""
+            
         system_message = (
             "You are an expert legal simulation generator. Your task is to create a realistic, branching dialogue tree for a legal negotiation scenario. You will be given a detailed case background and a specific simulation goal. Your output MUST be a single, valid JSON object and nothing else.\n\n"
             "[TASK_DEFINITION]\n"
             "Generate a dialogue tree exactly three (3) levels deep.\n"
-            "Level 1: An opening statement from the \"Player (My Lawyer)\".\n"
+            f"{level1_instruction}"
             "Level 2: Three possible responses from the \"Opposing Counsel\".\n"
             "Level 3: For each Level 2 response, provide exactly three follow-up replies from the \"Player (My Lawyer)\".\n"
             "The dialogue must directly reflect the facts, disputed issues, and (most importantly) the personalities described in the [CASE_BACKGROUND]. The entire negotiation must be focused on achieving the [SIMULATION_GOAL].\n\n"
@@ -53,6 +79,7 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
             f"[CASE_BACKGROUND]\n{case_background}\n\n"
             f"[PREVIOUS STATEMENTS]\n{previous_statements}\n\n"
             f"[SIMULATION_GOAL] {simulation_goal}\n\n"
+            f"{special_note}"
             "[OUTPUT_FORMAT_AND_CONSTRAINTS]\n"
             "Output format MUST be a single, valid JSON object.\n"
             "Do not include any text, explanations, or markdown formatting before or after the JSON object.\n"
@@ -133,75 +160,8 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating tree: {str(e)}")
 
-def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, Any]) -> int:
-    """
-    Save the generated tree structure to the database.
-    Returns the tree_id of the created tree.
-    """
-    try:
-        # Create a new Tree record
-        tree = Tree(case_id=case_id)
-        session.add(tree)
-        session.commit()
-        session.refresh(tree)
-        
-        # Get the scenarios_tree from the response
-        scenarios_tree = tree_data.get("scenarios_tree", {})
-        
-        # Save Level 1 message (root)
-        level1_msg = Message(
-            content=scenarios_tree.get("line", ""),
-            role=scenarios_tree.get("speaker", "Player (My Lawyer)"),
-            tree_id=tree.id,
-            parent_id=0,  # Root message has parent_id 0
-            selected=True
-        )
-        session.add(level1_msg)
-        session.commit()
-        session.refresh(level1_msg)
-        
-        # Save Level 2 messages (opposing counsel responses)
-        level2_messages = []
-        level2_responses = scenarios_tree.get("responses", [])
-        
-        for i, level2_response in enumerate(level2_responses):
-            level2_msg = Message(
-                content=level2_response.get("line", ""),
-                role=level2_response.get("speaker", "Opposing Counsel"),
-                tree_id=tree.id,
-                parent_id=level1_msg.id,
-                selected=True
-            )
-            session.add(level2_msg)
-            session.commit()
-            session.refresh(level2_msg)
-            level2_messages.append(level2_msg)
-        
-        # Save Level 3 messages (player follow-ups)
-        for i, level2_response in enumerate(level2_responses):
-            if i < len(level2_messages):
-                level2_msg = level2_messages[i]
-                level3_responses = level2_response.get("responses", [])
-                
-                for level3_response in level3_responses:
-                    level3_msg = Message(
-                        content=level3_response.get("line", ""),
-                        role=level3_response.get("speaker", "Player (My Lawyer)"),
-                        tree_id=tree.id,
-                        parent_id=level2_msg.id,
-                        selected=True
-                    )
-                    session.add(level3_msg)
-        
-        session.commit()
-        return tree.id
-        
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=f"Error saving tree to database: {str(e)}")
-
 @router.post("/generate-tree", response_model=TreeResponse)
-async def generate_tree(case_id: int, simulation_goal: str = "Reach a favorable settlement", session: Session = Depends(get_session)):
+async def generate_tree(case_id: int, tree_id: int = None, simulation_goal: str = "Reach a favorable settlement", session: Session = Depends(get_session)):
     """
     Generate a tree of messages based on the case background and previous statements.
     Creates a new tree in the database and returns the generated dialogue structure.
@@ -209,36 +169,26 @@ async def generate_tree(case_id: int, simulation_goal: str = "Reach a favorable 
     """
     try:
         # Get the case context
-        case_context = get_case_context(session, case_id)
-        if not case_context:
+        case_background = get_case_context(session, case_id)
+        if not case_background:
             raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found")
-        
-        # Get the messages history for the tree (if any)
-        messages_history = get_messages_by_tree(session, 0)  # Get all messages for now
-        
-        # Format the case background as JSON
-        case_background = case_context
-        
-        # Format previous statements from message history
-        previous_statements = []
-        if messages_history:
-            for message in messages_history:
-                previous_statements.append({
-                    "party": "Party A" if message.role == "Player (My Lawyer)" else "Party B",
-                    "statement": message.content
-                })
-        
-        # Convert to JSON string format
-        import json
-        previous_statements_json = json.dumps(previous_statements, indent=2)
+
+        # Get the messages history for the tree if tree_id is provided
+        if tree_id is not None:
+            messages_history = get_messages_by_tree(session, tree_id)
+            # Extract the last message to use as Level 1
+            last_message = extract_last_message_from_history(messages_history)
+        else:
+            messages_history = ""
+            last_message = None
         
         # Generate a tree of messages based on the case background and simulation goal
-        tree_data = create_tree(case_background, previous_statements_json, simulation_goal)
-        
+        tree_data = create_tree(case_background, messages_history, simulation_goal, last_message)
+
         # Save the tree to the database
-        tree_id = save_tree_to_database(session, case_id, tree_data)
-        
-        # Return the generated tree data with the tree_id
+        # tree_id = save_tree_to_database(session, case_id, tree_data)
+
+        # Return the generated tree data with the tree_id (if provided)
         return {
             "tree_id": tree_id,
             "case_id": case_id,

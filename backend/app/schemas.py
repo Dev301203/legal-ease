@@ -22,7 +22,7 @@ class ScenariosTreeResponse(BaseModel):
     scenarios_tree: TreeNode
 
 class TreeResponse(BaseModel):
-    tree_id: int
+    tree_id: Optional[int] = None
     case_id: int
     simulation_goal: str
     scenarios_tree: TreeNode
