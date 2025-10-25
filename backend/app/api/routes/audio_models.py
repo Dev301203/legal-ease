@@ -92,3 +92,28 @@ async def upload_audio(audio_file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
+    
+@router.post("/summarize-dialogue")
+async def summarize_dialogue(data: str):
+    """
+    Takes in a string describing a possible scenario option
+    Returns a shortened summary about 8 words long, as a verb.
+    """
+    try:
+
+        client = get_boson_client()
+        response = client.chat.completions.create(
+            model="Qwen3-32B-thinking-Hackathon",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Say only 8 words to summarize the following as an action. Do not say anything else or think:\n" + data}
+            ],
+            max_tokens=128,
+            temperature=0.7
+        ) # response is of form <think>\n\n</think>\n\n`ANSWER`
+
+
+        return {"message": response.choices[0].message.content.split("\n")[4]}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error summarizing in get-headline: {str(e)}")
