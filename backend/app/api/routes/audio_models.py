@@ -1,7 +1,7 @@
 import json
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 import base64
 import io
 import wave
@@ -31,6 +31,10 @@ def get_session():
     with Session(engine) as session:
         yield session
 
+# audio helper
+def b64(path):
+    return base64.b64encode(open(path, "rb").read()).decode("utf-8")
+
 
 @router.get("/context/{case_id}/{tree_id}", response_model=ContextResponse)
 async def get_context_history(case_id: int, tree_id: int, session: Session = Depends(get_session),) -> ContextResponse:
@@ -49,10 +53,10 @@ async def get_context_history(case_id: int, tree_id: int, session: Session = Dep
 
 
 
-@router.post("/upload-audio")
-async def upload_audio(audio_file: UploadFile = File(...)):
+@router.post("/transcribe-audio")
+async def transcribe_audio(audio_file: UploadFile = File(...)):
     """
-    Upload audio file containing user's voice question.
+    Upload .wav audio file containing user's voice question.
     Returns the transcribed text from the audio.
     """
     if not audio_file.content_type or not audio_file.content_type.startswith("audio/"):
@@ -70,25 +74,107 @@ async def upload_audio(audio_file: UploadFile = File(...)):
         response = client.chat.completions.create(
             model="higgs-audio-understanding-Hackathon",
             messages=[
+                {"role": "system", "content": "Transcribe this audio for me."},
                 {
-                    "role": "user", 
-                    "content": [{
-                        "type": "input_audio",
-                        "input_audio": {"data": audio_b64, "format": "wav"}
-                    }]
-                }
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_audio",
+                            "input_audio": {
+                                "data": audio_b64,
+                                "format": "wav",  # Assumed wav file uploads.
+                            },
+                        },
+                    ],
+                },
             ],
-            modalities=["text", "audio"],
-            max_completion_tokens=4096,
-            temperature=0.3,
-            stream=False,
+            max_completion_tokens=256,
+            temperature=0.0,
         )
+
         transcribed_text = response.choices[0].message.content
         
         return AudioResponse(
-            message="Audio uploaded and transcribed successfully",
-            audio_data=transcribed_text
+            message=transcribed_text
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
+
+
+@router.get("/get-conversation-audio")
+async def get_conversation_audio(tree_id: int):
+    """
+    Takes a tree_id, for which it gets conversation history messages from the database in order.
+    Returns the generated audio file as wav.
+    """
+
+    try:
+        messages = get_messages_by_tree(tree_id)
+
+        tts_string = ""
+
+        speaker = 0
+        for message in messages:
+            tts_string += "[SPEAKER" + str(speaker) + "] " + message.content + "\n"
+            speaker = 1-speaker # alternate [SPEAKER0] and [SPEAKER1]
+        
+
+        # audio generation
+        reference_path0 = "../sample_audios/belinda.wav"
+        reference_transcript0 = (
+            "[SPEAKER0]"
+            "T'was the night before my birthday." 
+            "Hurray! It's almost here!"
+            "It may not be a holiday, but it's the best day of the year."
+        )
+        reference_path1 = "../sample_audios/en_man.wav"
+        reference_transcript1 = (
+            "[SPEAKER1] Maintaining your ability to learn translates into increased marketability, improved career options, and higher salaries."
+        )
+        system = (
+            "You are an AI assistant designed to convert text into speech.\n"
+            "If the user's message includes a [SPEAKER*] tag, do not read out the tag and generate speech for the following text, using the specified voice.\n"
+            "If no speaker tag is present, select a suitable voice on your own.\n\n"
+            "<|scene_desc_start|>\nAudio is recorded from a quiet room.\n<|scene_desc_end|>"
+        )
+        client = get_boson_client()
+        resp = client.chat.completions.create(
+            model="higgs-audio-generation-Hackathon",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": reference_transcript0},
+                {
+                    "role": "assistant",
+                    "content": [{
+                        "type": "input_audio",
+                        "input_audio": {"data": b64(reference_path0), "format": "wav"}
+                    }],
+                },
+                {"role": "user", "content": reference_transcript1},
+                {
+                    "role": "assistant",
+                    "content": [{
+                        "type": "input_audio",
+                        "input_audio": {"data": b64(reference_path1), "format": "wav"}
+                    }],
+                },
+                {"role": "user", "content": tts_string},
+            ],
+            modalities=["text", "audio"],
+            max_completion_tokens=4096,
+            temperature=1.0,
+            top_p=0.95,
+            stream=False,
+            stop=["<|eot_id|>", "<|end_of_text|>", "<|audio_eos|>"],
+            extra_body={"top_k": 50},
+        )
+
+        audio_b64 = resp.choices[0].message.audio.data
+        open(str(tree_id) + ".wav", "wb").write(base64.b64decode(audio_b64))
+        return FileResponse(str(tree_id) + ".wav", media_type="audio/wav")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing conversation: {str(e)}")
+
+    
