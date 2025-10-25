@@ -23,10 +23,10 @@ def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
         (Message.tree_id == tree_id) & (Message.selected == True)
     )
     messages = session.exec(statement).all()
-    
+
     if not messages:
         raise HTTPException(status_code=404, detail=f"No selected messages found in tree {tree_id}")
-    
+
     # Find the deepest selected message (the one with no selected children)
     for msg in messages:
         # Check if this message has any selected children
@@ -38,7 +38,7 @@ def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
         
         if not has_selected_children:
             return msg.id
-    
+
     # Fallback: return the message with the highest ID
     return max(msg.id for msg in messages)
 

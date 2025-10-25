@@ -49,7 +49,6 @@ def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
     # Fallback: return the message with the highest ID
     return max(msg.id for msg in messages)
 
-
 # Boson AI client configuration
 def get_boson_client():
     """Get Boson AI client with proper error handling"""
@@ -364,52 +363,3 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Error saving messages to tree: {str(e)}")
-
-@router.post("/generate-tree", response_model=TreeResponse)
-async def generate_tree(case_id: int, tree_id: int = None, simulation_goal: str = "Reach a favorable settlement", session: Session = Depends(get_session)):
-    """
-    Generate a tree of messages based on the case background and previous statements.
-    If tree_id is provided, continues from the last selected message in that tree.
-    If no tree_id, creates a new tree with the generated level1 as root.
-    Returns the generated dialogue structure with the tree_id.
-    """
-    try:
-        # Get the case context
-        case_background = get_case_context(session, case_id)
-        if not case_background:
-            raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found")
-
-        # Get the messages history and last message info for the tree if tree_id is provided
-        if tree_id is not None:
-            messages_history = get_messages_by_tree(session, tree_id)
-            # Get the ID of the last selected message to use as parent
-            last_message_id = get_last_message_id_from_tree(session, tree_id)
-            # Get the content of the last message directly from database
-            last_message = session.get(Message, last_message_id)
-            last_message_content = last_message.content if last_message else ""
-        else:
-            messages_history = ""
-            last_message_content = ""
-            last_message_id = None
-        
-        # Generate a tree of messages based on the case background and simulation goal
-        tree_data = create_tree(case_background, messages_history, simulation_goal, last_message_content)
-
-        # Save the messages to the database
-        saved_tree_id = save_messages_to_tree(
-            session, 
-            case_id, 
-            tree_data, 
-            existing_tree_id=tree_id, 
-            last_message_id=last_message_id
-        )
-
-        # Return the generated tree data with the tree_id
-        return {
-            "tree_id": saved_tree_id,
-            "case_id": case_id,
-            "simulation_goal": simulation_goal,
-            **tree_data
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating tree: {str(e)}")
