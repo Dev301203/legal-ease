@@ -1,11 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { Box, Button, Heading, VStack } from "@chakra-ui/react"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { Box, Button, Heading, Image, VStack } from "@chakra-ui/react"
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 })
 
 function HomePage() {
+  const navigate = useNavigate()
   return (
     <Box
       display="flex"
@@ -15,6 +16,12 @@ function HomePage() {
       width="100%"
     >
       <VStack gap={8}>
+        <Image
+          src="/assets/images/logo.png"
+          alt="LegalEase Logo"
+          maxWidth="200px"
+          marginBottom="10px"
+        />
         <Heading
           fontSize="8xl"
           fontWeight="semibold"
@@ -34,6 +41,7 @@ function HomePage() {
           color="#F4ECD8"
           _hover={{ bg: "#2A2A2A" }}
           _active={{ bg: "#1A1A1A" }}
+          onClick={() => navigate({ to: "/cases" })}
         >
           Start
         </Button>
