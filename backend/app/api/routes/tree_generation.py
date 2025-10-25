@@ -10,7 +10,7 @@ from app.core.db import engine
 from app.crud import get_case_context, get_messages_by_tree
 from app.schemas import TreeResponse, ScenariosTreeResponse
 from app.models import Tree, Message
-from sqlmodel import Session
+from sqlmodel import Session, select
 from typing import Dict, Any
 
 router = APIRouter()
@@ -20,25 +20,35 @@ def get_session():
     with Session(engine) as session:
         yield session
 
-def extract_last_message_from_history(messages_history: str) -> str:
+def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
     """
-    Extract the last message from the conversation history JSON string.
-    Returns the statement of the last conversation turn, or empty string if no history.
+    Get the ID of the last selected message in a tree.
+    Returns the ID of the deepest selected message in the tree.
     """
-    if not messages_history or messages_history.strip() == "":
-        return ""
+    # Get all selected messages in the tree
+    statement = select(Message).where(
+        (Message.tree_id == tree_id) & (Message.selected == True)
+    )
+    messages = session.exec(statement).all()
     
-    try:
-        import json
-        conversation_data = json.loads(messages_history)
-        conversation = conversation_data.get("conversation", [])
+    if not messages:
+        raise HTTPException(status_code=404, detail=f"No selected messages found in tree {tree_id}")
+    
+    # Find the deepest selected message (the one with no selected children)
+    for msg in messages:
+        # Check if this message has any selected children
+        has_selected_children = session.exec(
+            select(Message).where(
+                (Message.parent_id == msg.id) & (Message.selected == True)
+            )
+        ).first() is not None
         
-        if conversation:
-            last_turn = conversation[-1]
-            return last_turn.get("statement", "")
-        return ""
-    except (json.JSONDecodeError, KeyError, IndexError):
-        return ""
+        if not has_selected_children:
+            return msg.id
+    
+    # Fallback: return the message with the highest ID
+    return max(msg.id for msg in messages)
+
 
 # Boson AI client configuration
 def get_boson_client():
@@ -160,12 +170,208 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating tree: {str(e)}")
 
+def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, Any]) -> int:
+    """
+    Save the generated tree structure to the database.
+    Returns the tree_id of the created tree.
+    """
+    try:
+        # Create a new Tree record
+        tree = Tree(case_id=case_id)
+        session.add(tree)
+        session.commit()
+        session.refresh(tree)
+        
+        # Get the scenarios_tree from the response
+        scenarios_tree = tree_data.get("scenarios_tree", {})
+        
+        # Save Level 1 message (root)
+        level1_msg = Message(
+            content=scenarios_tree.get("line", ""),
+            role=scenarios_tree.get("speaker", "Player (My Lawyer)"),
+            tree_id=tree.id,
+            parent_id=0,  # Root message has parent_id 0
+            selected=True
+        )
+        session.add(level1_msg)
+        session.commit()
+        session.refresh(level1_msg)
+        
+        # Save Level 2 messages (opposing counsel responses)
+        level2_messages = []
+        level2_responses = scenarios_tree.get("responses", [])
+        
+        for i, level2_response in enumerate(level2_responses):
+            level2_msg = Message(
+                content=level2_response.get("line", ""),
+                role=level2_response.get("speaker", "Opposing Counsel"),
+                tree_id=tree.id,
+                parent_id=level1_msg.id,
+                selected=True
+            )
+            session.add(level2_msg)
+            session.commit()
+            session.refresh(level2_msg)
+            level2_messages.append(level2_msg)
+        
+        # Save Level 3 messages (player follow-ups)
+        for i, level2_response in enumerate(level2_responses):
+            if i < len(level2_messages):
+                level2_msg = level2_messages[i]
+                level3_responses = level2_response.get("responses", [])
+                
+                for level3_response in level3_responses:
+                    level3_msg = Message(
+                        content=level3_response.get("line", ""),
+                        role=level3_response.get("speaker", "Player (My Lawyer)"),
+                        tree_id=tree.id,
+                        parent_id=level2_msg.id,
+                        selected=True
+                    )
+                    session.add(level3_msg)
+        
+        session.commit()
+        return tree.id
+        
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Error saving tree to database: {str(e)}")
+
+def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, Any], existing_tree_id: int = None, last_message_id: int = None) -> int:
+    """
+    Save messages from tree generation to database.
+    If no existing_tree_id, creates a new tree with level1 as root.
+    If existing_tree_id provided, appends new messages to the existing tree as children of last_message_id.
+    Returns the tree_id of the tree containing the messages.
+    """
+    try:
+        # Get the scenarios_tree from the response
+        scenarios_tree = tree_data.get("scenarios_tree", {})
+        
+        if existing_tree_id is None:
+            # No existing tree - create new tree with level1 as root
+            tree = Tree(case_id=case_id)
+            session.add(tree)
+            session.commit()
+            session.refresh(tree)
+            tree_id = tree.id
+            
+            # Save Level 1 message as root (parent_id=None)
+            level1_msg = Message(
+                content=scenarios_tree.get("line", ""),
+                role=scenarios_tree.get("speaker", "Player (My Lawyer)"),
+                tree_id=tree_id,
+                parent_id=None,  # Root message
+                selected=True
+            )
+            session.add(level1_msg)
+            session.commit()
+            session.refresh(level1_msg)
+            
+            # Save Level 2 messages (opposing counsel responses)
+            level2_messages = []
+            level2_responses = scenarios_tree.get("responses", [])
+            
+            for level2_response in level2_responses:
+                level2_msg = Message(
+                    content=level2_response.get("line", ""),
+                    role=level2_response.get("speaker", "Opposing Counsel"),
+                    tree_id=tree_id,
+                    parent_id=level1_msg.id,
+                    selected=False  # Not selected by default
+                )
+                session.add(level2_msg)
+                session.commit()
+                session.refresh(level2_msg)
+                level2_messages.append(level2_msg)
+            
+            # Save Level 3 messages (player follow-ups)
+            for i, level2_response in enumerate(level2_responses):
+                if i < len(level2_messages):
+                    level2_msg = level2_messages[i]
+                    level3_responses = level2_response.get("responses", [])
+                    
+                    for level3_response in level3_responses:
+                        level3_msg = Message(
+                            content=level3_response.get("line", ""),
+                            role=level3_response.get("speaker", "Player (My Lawyer)"),
+                            tree_id=tree_id,
+                            parent_id=level2_msg.id,
+                            selected=False  # Not selected by default
+                        )
+                        session.add(level3_msg)
+            
+        else:
+            # Existing tree - append new messages as children of last_message_id
+            tree_id = existing_tree_id
+            
+            # Get the last message to use as parent
+            if last_message_id is None:
+                raise HTTPException(status_code=400, detail="last_message_id is required when continuing existing tree")
+            
+            last_message = session.get(Message, last_message_id)
+            if not last_message:
+                raise HTTPException(status_code=404, detail=f"Message with id {last_message_id} not found")
+            
+            # Save Level 1 message as child of last_message
+            level1_msg = Message(
+                content=scenarios_tree.get("line", ""),
+                role=scenarios_tree.get("speaker", "Player (My Lawyer)"),
+                tree_id=tree_id,
+                parent_id=last_message_id,
+                selected=False  # Not selected by default
+            )
+            session.add(level1_msg)
+            session.commit()
+            session.refresh(level1_msg)
+            
+            # Save Level 2 messages (opposing counsel responses)
+            level2_messages = []
+            level2_responses = scenarios_tree.get("responses", [])
+            
+            for level2_response in level2_responses:
+                level2_msg = Message(
+                    content=level2_response.get("line", ""),
+                    role=level2_response.get("speaker", "Opposing Counsel"),
+                    tree_id=tree_id,
+                    parent_id=level1_msg.id,
+                    selected=False  # Not selected by default
+                )
+                session.add(level2_msg)
+                session.commit()
+                session.refresh(level2_msg)
+                level2_messages.append(level2_msg)
+            
+            # Save Level 3 messages (player follow-ups)
+            for i, level2_response in enumerate(level2_responses):
+                if i < len(level2_messages):
+                    level2_msg = level2_messages[i]
+                    level3_responses = level2_response.get("responses", [])
+                    
+                    for level3_response in level3_responses:
+                        level3_msg = Message(
+                            content=level3_response.get("line", ""),
+                            role=level3_response.get("speaker", "Player (My Lawyer)"),
+                            tree_id=tree_id,
+                            parent_id=level2_msg.id,
+                            selected=False  # Not selected by default
+                        )
+                        session.add(level3_msg)
+        
+        session.commit()
+        return tree_id
+        
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Error saving messages to tree: {str(e)}")
+
 @router.post("/generate-tree", response_model=TreeResponse)
 async def generate_tree(case_id: int, tree_id: int = None, simulation_goal: str = "Reach a favorable settlement", session: Session = Depends(get_session)):
     """
     Generate a tree of messages based on the case background and previous statements.
-    Creates a new tree in the database and returns the generated dialogue structure.
-    Hot reload test - this comment should trigger a reload!
+    If tree_id is provided, continues from the last selected message in that tree.
+    If no tree_id, creates a new tree with the generated level1 as root.
+    Returns the generated dialogue structure with the tree_id.
     """
     try:
         # Get the case context
@@ -173,24 +379,34 @@ async def generate_tree(case_id: int, tree_id: int = None, simulation_goal: str 
         if not case_background:
             raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found")
 
-        # Get the messages history for the tree if tree_id is provided
+        # Get the messages history and last message info for the tree if tree_id is provided
         if tree_id is not None:
             messages_history = get_messages_by_tree(session, tree_id)
-            # Extract the last message to use as Level 1
-            last_message = extract_last_message_from_history(messages_history)
+            # Get the ID of the last selected message to use as parent
+            last_message_id = get_last_message_id_from_tree(session, tree_id)
+            # Get the content of the last message directly from database
+            last_message = session.get(Message, last_message_id)
+            last_message_content = last_message.content if last_message else ""
         else:
             messages_history = ""
-            last_message = None
+            last_message_content = ""
+            last_message_id = None
         
         # Generate a tree of messages based on the case background and simulation goal
-        tree_data = create_tree(case_background, messages_history, simulation_goal, last_message)
+        tree_data = create_tree(case_background, messages_history, simulation_goal, last_message_content)
 
-        # Save the tree to the database
-        # tree_id = save_tree_to_database(session, case_id, tree_data)
+        # Save the messages to the database
+        saved_tree_id = save_messages_to_tree(
+            session, 
+            case_id, 
+            tree_data, 
+            existing_tree_id=tree_id, 
+            last_message_id=last_message_id
+        )
 
-        # Return the generated tree data with the tree_id (if provided)
+        # Return the generated tree data with the tree_id
         return {
-            "tree_id": tree_id,
+            "tree_id": saved_tree_id,
             "case_id": case_id,
             "simulation_goal": simulation_goal,
             **tree_data
