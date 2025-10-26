@@ -16,4 +16,5 @@ python app/initial_data.py
 
 # Start the application with multiple workers
 # Render sets PORT env var, default to 8000 for local dev
-exec fastapi run --workers 4 --port ${PORT:-8000} app/main.py
+# Bind to 0.0.0.0 to accept external connections (required for Render)
+exec fastapi run --host 0.0.0.0 --workers 4 --port ${PORT:-8000} app/main.py
