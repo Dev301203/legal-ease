@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select, func
 
 from app.api.routes.audio_models import get_session, get_context_history
 from app.core.db import engine
@@ -32,6 +32,12 @@ def clear_all_data(session: Session):
 
 def create_sample_data():
     with Session(engine) as session:
+        # Check if data already exists
+        existing_cases = session.exec(select(func.count(Case.id))).first()
+        if existing_cases and existing_cases > 0:
+            print("✅ Database already contains data. Skipping sample data creation.")
+            return
+        
         # === Build context JSON ===
         case_context = {
             "parties": {
