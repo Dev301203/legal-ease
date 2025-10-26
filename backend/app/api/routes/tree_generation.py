@@ -214,8 +214,8 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
         level1_msg = Message(
             content=scenarios_tree.get("line", ""),
             role=scenarios_tree.get("speaker", "A"),
-            tree_id=tree.id,
-            parent_id=0,  # Root message has parent_id 0
+            simulation_id=tree.id,
+            parent_id=None,  # Root message has parent_id None
             selected=True
         )
         session.add(level1_msg)
@@ -230,7 +230,7 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
             level2_msg = Message(
                 content=level2_response.get("line", ""),
                 role=level2_response.get("speaker", "B"),
-                tree_id=tree.id,
+                simulation_id=tree.id,
                 parent_id=level1_msg.id,
                 selected=True
             )
@@ -249,7 +249,7 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
                     level3_msg = Message(
                         content=level3_response.get("line", ""),
                         role=level3_response.get("speaker", "A"),
-                        tree_id=tree.id,
+                        simulation_id=tree.id,
                         parent_id=level2_msg.id,
                         selected=True
                     )
@@ -279,7 +279,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             level1_msg = Message(
                 content=scenarios_tree.get("line", ""),
                 role=scenarios_tree.get("speaker", "A"),
-                tree_id=existing_tree_id,
+                simulation_id=existing_tree_id,
                 parent_id=None,  # Root message
                 selected=True
             )
@@ -295,7 +295,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                 level2_msg = Message(
                     content=level2_response.get("line", ""),
                     role=level2_response.get("speaker", "B"),
-                    tree_id=existing_tree_id,
+                    simulation_id=existing_tree_id,
                     parent_id=level1_msg.id,
                     selected=False  # Not selected by default
                 )
@@ -314,7 +314,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                         level3_msg = Message(
                             content=level3_response.get("line", ""),
                             role=level3_response.get("speaker", "A"),
-                            tree_id=existing_tree_id,
+                            simulation_id=existing_tree_id,
                             parent_id=level2_msg.id,
                             selected=False  # Not selected by default
                         )
@@ -330,7 +330,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             level1_msg = Message(
                 content=scenarios_tree.get("line", ""),
                 role=scenarios_tree.get("speaker", "A"),
-                tree_id=existing_tree_id,
+                simulation_id=existing_tree_id,
                 parent_id=last_message_id,
                 selected=False  # Not selected by default
             )
@@ -346,7 +346,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                 level2_msg = Message(
                     content=level2_response.get("line", ""),
                     role=level2_response.get("speaker", "B"),
-                    tree_id=existing_tree_id,
+                    simulation_id=existing_tree_id,
                     parent_id=level1_msg.id,
                     selected=False  # Not selected by default
                 )
@@ -365,7 +365,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                         level3_msg = Message(
                             content=level3_response.get("line", ""),
                             role=level3_response.get("speaker", "A"),
-                            tree_id=existing_tree_id,
+                            simulation_id=existing_tree_id,
                             parent_id=level2_msg.id,
                             selected=False  # Not selected by default
                         )

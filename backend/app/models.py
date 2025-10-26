@@ -38,6 +38,11 @@ class Message(SQLModel, table=True):
     simulation_id: int = Field(foreign_key="simulation.id", nullable=False, ondelete="CASCADE")
     parent_id: int = Field(foreign_key="message.id", nullable=True)
 
+class Bookmark(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    simulation_id: int = Field(foreign_key="simulation.id", nullable=False, ondelete="CASCADE")
+    message_id: int = Field(foreign_key="message.id", nullable=False, ondelete="CASCADE")
+
 class Document(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     file_name: str = Field(default=None)

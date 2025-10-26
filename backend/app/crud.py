@@ -6,8 +6,8 @@ from sqlmodel import Session, select
 
 from app.core.security import get_password_hash, verify_password
 from app.models import Item, ItemCreate, User, UserCreate, UserUpdate, Case, \
-    Message, Simulation
-from app.schemas import SimulationCreate
+    Message, Simulation, Bookmark
+from app.schemas import SimulationCreate, BookmarkCreate
 from app.schemas import messages_to_conversation
 from sqlmodel import Session, select, delete
 from typing import List, Optional
@@ -18,6 +18,32 @@ def get_case_context(session: Session, case_id: int) -> str | None:
     statement = select(Case.context).where(Case.id == case_id)
     result = session.exec(statement).first()
     return result
+
+
+def format_case_background_for_llm(context_json: str) -> str:
+    """Parse and format case context JSON into a readable string for LLM."""
+    import json
+    try:
+        background_data = json.loads(context_json)
+    except Exception:
+        background_data = {}
+    
+    # Extract parties
+    party_a = background_data.get("parties", {}).get("party_A", {}).get("name", "Unknown Party")
+    party_b = background_data.get("parties", {}).get("party_B", {}).get("name", "Unknown Party")
+    key_issues = background_data.get("key_issues", "") or "Not specified"
+    general_notes = background_data.get("general_notes", "") or "Not specified"
+    
+    # Format into readable string - always provide all fields
+    formatted = f"Case Background:\n\n"
+    formatted += f"Parties:\n"
+    formatted += f"  Party A: {party_a}\n"
+    formatted += f"  Party B: {party_b}\n\n"
+    
+    formatted += f"Key Issues:\n{key_issues}\n\n"
+    formatted += f"General Notes:\n{general_notes}\n"
+    
+    return formatted
 
 
 
@@ -165,25 +191,19 @@ def get_selected_messages_between(
 
 def delete_messages_including_children(session: Session, message_id: int) -> bool:
     """
-    Delete all messages in the same tree that include the given message.
+    Delete all children of a message (not the message itself).
     Returns True if successful, False otherwise.
     """
-
-    # Get the target message
-    target = session.get(Message, message_id)
-    if not target:
-        raise ValueError(f"Message with id={message_id} not found")
 
     # Get all direct children
     children_stmt = select(Message).where(Message.parent_id == message_id)
     children = session.exec(children_stmt).all()
 
-    # Delete all messages in this tree with parent_id == message_id recursively
+    # Recursively delete all descendants of each child
     for child in children:
         delete_messages_including_children(session, child.id)
-
-    # Delete the target message
-    session.delete(target)
+        session.delete(child)  # Delete the child itself after its descendants
+    
     try:
         session.commit()
     except Exception as e:
@@ -302,4 +322,53 @@ def create_simulation(*, session: Session, simulation_create: SimulationCreate) 
     session.commit()
     session.refresh(simulation)
     return simulation
+
+
+def create_bookmark(*, session: Session, bookmark_create: BookmarkCreate) -> Bookmark:
+    """Create a new bookmark."""
+    # Check if simulation exists
+    simulation = session.get(Simulation, bookmark_create.simulation_id)
+    if not simulation:
+        raise HTTPException(status_code=404, detail=f"Simulation with id {bookmark_create.simulation_id} not found")
+    
+    # Check if message exists
+    message = session.get(Message, bookmark_create.message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail=f"Message with id {bookmark_create.message_id} not found")
+    
+    # Check if bookmark already exists
+    existing_bookmark = session.exec(
+        select(Bookmark).where(
+            Bookmark.simulation_id == bookmark_create.simulation_id,
+            Bookmark.message_id == bookmark_create.message_id
+        )
+    ).first()
+    
+    if existing_bookmark:
+        raise HTTPException(status_code=400, detail="Bookmark already exists for this message in this simulation")
+    
+    bookmark = Bookmark(
+        simulation_id=bookmark_create.simulation_id,
+        message_id=bookmark_create.message_id
+    )
+    session.add(bookmark)
+    session.commit()
+    session.refresh(bookmark)
+    return bookmark
+
+
+def get_bookmarks_by_simulation(*, session: Session, simulation_id: int) -> list[Bookmark]:
+    """Get all bookmarks for a specific simulation."""
+    return session.exec(select(Bookmark).where(Bookmark.simulation_id == simulation_id)).all()
+
+
+def delete_bookmark(*, session: Session, bookmark_id: int) -> bool:
+    """Delete a bookmark by ID."""
+    bookmark = session.get(Bookmark, bookmark_id)
+    if not bookmark:
+        raise HTTPException(status_code=404, detail=f"Bookmark with id {bookmark_id} not found")
+    
+    session.delete(bookmark)
+    session.commit()
+    return True
 

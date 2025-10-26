@@ -9,9 +9,12 @@ from pydantic import BaseModel
 from app.api.routes.audio_models import get_session, summarize_background_helper
 from app.crud import get_messages_by_tree, get_selected_messages_between, \
     get_tree, delete_messages_after_children, get_message_children, \
-    update_message_selected, get_case_context, delete_messages_including_children, create_simulation
+    update_message_selected, get_case_context, delete_messages_including_children, \
+    create_simulation, create_bookmark, get_bookmarks_by_simulation, delete_bookmark, \
+    format_case_background_for_llm
 from app.models import Message, Case, Simulation
-from app.schemas import TreeResponse, SimulationCreate, SimulationResponse, CaseWithTreeCount
+from app.schemas import TreeResponse, SimulationCreate, SimulationResponse, CaseWithTreeCount, \
+    BookmarkCreate, BookmarkResponse
 from app.api.routes.tree_generation import create_tree, save_messages_to_tree
 
 router = APIRouter()
@@ -19,8 +22,8 @@ router = APIRouter()
 
 class ContinueConversationRequest(BaseModel):
     case_id: int
-    message_id: Optional[int] = None,
-    tree_id: Optional[int] = None,
+    message_id: Optional[int] = None
+    tree_id: Optional[int] = None
     refresh: bool = False
 
 
@@ -72,7 +75,7 @@ def get_message_children_for_tree(session: Session, message_id: int) -> list[Mes
     return children
 
 
-@router.post("/continue-conversation", response_model=TreeResponse)
+@router.post("/continue-conversation")
 async def continue_conversation(request: ContinueConversationRequest, session: Session = Depends(get_session)):
     """
     Continue a conversation by either generating new messages or returning existing children.
@@ -87,9 +90,12 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
     refresh = request.refresh
     try:
         # Get the case context
-        case_background = get_case_context(session, case_id)
-        if not case_background:
+        case_context_json = get_case_context(session, case_id)
+        if not case_context_json:
             raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found")
+
+        # Format the case background for the LLM
+        case_background = format_case_background_for_llm(case_context_json)
 
         # Tree_id provided - continue existing conversation
         # Check if the last selected message is a leaf node
@@ -103,7 +109,7 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
         last_message_content = last_message.content if last_message else ""
 
         simulation = session.get(Simulation, tree_id)
-        simulation_goal = simulation.brief
+        simulation_goal = simulation.brief if simulation else "Reach a favorable settlement"
 
         # Generate a tree of messages based on the case background and simulation goal
         tree_data = create_tree(case_background, messages_history, simulation_goal, last_message_content, refresh)
@@ -494,3 +500,60 @@ def create_simulation_endpoint(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating simulation: {str(e)}")
+
+
+@router.post("/bookmarks", response_model=BookmarkResponse)
+def create_bookmark_endpoint(
+    bookmark_data: BookmarkCreate,
+    db: Session = Depends(get_session)
+):
+    """
+    Create a new bookmark for a specific message in a simulation.
+    """
+    try:
+        bookmark = create_bookmark(session=db, bookmark_create=bookmark_data)
+        return BookmarkResponse(
+            id=bookmark.id,
+            simulation_id=bookmark.simulation_id,
+            message_id=bookmark.message_id
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating bookmark: {str(e)}")
+
+
+@router.get("/bookmarks/{simulation_id}", response_model=List[BookmarkResponse])
+def get_bookmarks_by_simulation_endpoint(
+    simulation_id: int,
+    db: Session = Depends(get_session)
+):
+    """
+    Get all bookmarks for a specific simulation.
+    """
+    bookmarks = get_bookmarks_by_simulation(session=db, simulation_id=simulation_id)
+    return [
+        BookmarkResponse(
+            id=bookmark.id,
+            simulation_id=bookmark.simulation_id,
+            message_id=bookmark.message_id
+        )
+        for bookmark in bookmarks
+    ]
+
+
+@router.delete("/bookmarks/{bookmark_id}")
+def delete_bookmark_endpoint(
+    bookmark_id: int,
+    db: Session = Depends(get_session)
+):
+    """
+    Delete a bookmark by ID.
+    """
+    try:
+        delete_bookmark(session=db, bookmark_id=bookmark_id)
+        return {"message": f"Bookmark with id {bookmark_id} deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting bookmark: {str(e)}")

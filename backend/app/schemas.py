@@ -86,3 +86,14 @@ class SimulationResponse(BaseModel):
     brief: str
     created_at: datetime
     case_id: int
+
+
+class BookmarkCreate(BaseModel):
+    simulation_id: int
+    message_id: int
+
+
+class BookmarkResponse(BaseModel):
+    id: int
+    simulation_id: int
+    message_id: int
