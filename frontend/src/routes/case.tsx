@@ -78,6 +78,13 @@ const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
 
 const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
+
+  useEffect(() => {
+  if (caseData) {
+    setEditedBackground(caseData.background);
+  }
+}, [caseData]);
+
 const handleStartRecording = async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -282,20 +289,19 @@ useEffect(() => {
   const handleSaveCase = async () => {
     if (!caseData) return
 
+    const updatedCase = {
+    ...caseData,
+    background: { ...caseData.background, ...editedBackground },
+  };
+
     setSaving(true)
     try {
+
       const response = await fetch(`http://localhost:8000/api/v1/cases/${caseData.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          party_a: caseData.background.party_a,
-          party_b: caseData.background.party_b,
-          key_issues: caseData.background.key_issues,
-          general_notes: caseData.background.general_notes,
-        }),
-      })
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedCase.background),
+    });
 
       if (!response.ok) {
         throw new Error(`Failed to save case: ${response.status}`)
@@ -306,6 +312,7 @@ useEffect(() => {
       
       // Update the summary with the regenerated value from the API
       setCaseData({ ...caseData, summary: data.summary })
+
 
       // Show success message or update UI
       console.log("Case saved successfully")
@@ -483,14 +490,17 @@ useEffect(() => {
 
           </HStack>
 
-          <Textarea
-            value={caseData.background.general_notes}
-            readOnly
-            rows={4}
-            bg="gray.50"
-            borderColor="gray.200"
-          />
-        </Box>
+                      <Textarea
+                      value={editedBackground.general_notes || ""}
+                      onChange={(e) =>
+                        setEditedBackground({
+                          ...editedBackground,
+                          general_notes: e.target.value,
+                        })
+                      }
+                      rows={4}
+                    />
+                    </Box>
 
                     {/* Save Button */}
                     <Box width="100%" display="flex" justifyContent="flex-end" mt={2}>
@@ -572,37 +582,77 @@ useEffect(() => {
               <VStack gap={4} alignItems="flex-start" width="100%">
                 {["party_a", "party_b", "key_issues", "general_notes"].map((field) => (
                   field === "general_notes" ? (
-                    <Box width="100%" key={field}>
-                      <HStack justifyContent="space-between" alignItems="center" mb={2}>
-                        <Text fontSize="sm" fontWeight="medium" color="#3A3A3A">
-                          GENERAL NOTES
-                        </Text>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        colorScheme={isRecording ? "red" : "gray"}
-                        onClick={() => {
-                          if (isRecording) {
-                            handleStopRecording()
-                          } else {
-                            handleStartRecording()
-                          }
-                        }}
-                      >
-                        {isRecording ? "Stop Recording" : "🎤 Record"}
-                      </Button>
-                      </HStack>
-                      <Textarea
-                        value={editedBackground.general_notes}
-                        onChange={(e) =>
-                          setEditedBackground({
-                            ...editedBackground,
-                            general_notes: e.target.value,
-                          })
-                        }
-                        rows={4}
-                      />
-                    </Box>
+
+                      <Box width="100%">
+                  <HStack justifyContent="space-between" alignItems="center" mb={2}>
+                    <Text fontSize="sm" fontWeight="medium" color="#3A3A3A">
+                      General Notes
+                    </Text>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      colorScheme={isRecording ? "red" : "gray"}
+                      onClick={() => {
+                        if (isRecording) handleStopRecording()
+                        else handleStartRecording()
+                      }}
+                    >
+                      {isRecording ? "Stop Recording" : "🎤 Record"}
+                    </Button>
+                  </HStack>
+
+                  <Textarea
+                    value={caseData.background.general_notes} // bind directly to caseData
+                    onChange={(e) =>
+                      setCaseData({
+                        ...caseData,
+                        background: {
+                          ...caseData.background,
+                          general_notes: e.target.value,
+                        },
+                      })
+                    }
+                    rows={4}
+                  />
+                </Box>
+
+
+
+
+
+
+
+                    // <Box width="100%" key={field}>
+                    //   <HStack justifyContent="space-between" alignItems="center" mb={2}>
+                    //     <Text fontSize="sm" fontWeight="medium" color="#3A3A3A">
+                    //       GENERAL NOTES
+                    //     </Text>
+                    //   <Button
+                    //     size="sm"
+                    //     variant="outline"
+                    //     colorScheme={isRecording ? "red" : "gray"}
+                    //     onClick={() => {
+                    //       if (isRecording) {
+                    //         handleStopRecording()
+                    //       } else {
+                    //         handleStartRecording()
+                    //       }
+                    //     }}
+                    //   >
+                    //     {isRecording ? "Stop Recording" : "🎤 Record"}
+                    //   </Button>
+                    //   </HStack>
+                    //   <Textarea
+                    //     value={editedBackground.general_notes}
+                    //     onChange={(e) =>
+                    //       setEditedBackground({
+                    //         ...editedBackground,
+                    //         general_notes: e.target.value,
+                    //       })
+                    //     }
+                    //     rows={4}
+                    //   />
+                    // </Box>
                   ) : (
                     <Box width="100%" key={field}>
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>

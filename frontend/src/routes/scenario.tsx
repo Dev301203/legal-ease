@@ -352,8 +352,9 @@ const handleStopRecording = async () => {
         const data = await response.json();
         const transcript = data.message;
 
+
         // Instead of appending to general_notes, set it to customResponse
-        setCustomResponse(transcript);
+        setCustomResponse((prev) => prev + " " + transcript);
 
       } catch (err) {
         console.error("Error sending audio to backend:", err);
