@@ -153,12 +153,13 @@ export async function trimMessagesAfter(messageId: number): Promise<void> {
 
 /**
  * Get audio for a conversation tree
- * @param treeId - The simulation/tree ID
+ * @param simulationId - The simulation ID
+ * @param messageId - The end message ID
  * @returns Audio file response
  * @throws Error if audio generation fails
  */
-export async function getConversationAudio(treeId: number): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/get-conversation-audio/${treeId}`)
+export async function getConversationAudio(simulationId: number, messageId: number): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/get-conversation-audio/${simulationId}?end_message_id=${messageId}`)
 
   if (!response.ok) {
     throw new Error(`Failed to get conversation audio: ${response.statusText}`)

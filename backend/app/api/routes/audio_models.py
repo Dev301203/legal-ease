@@ -169,17 +169,25 @@ async def get_conversation_audio(tree_id: int, end_message_id: int, session: Ses
     """
 
     try:
-        # messages = get_messages_by_tree(session, tree_id)
-        messages = get_messages_by_tree(session, tree_id, end_message_id)
-
-        tts_string = ""
-
-        speaker = 0  # 0 is belinda, 1 is man_en. Pick this based on who you want to speak first.
-        for message in messages:
-            tts_string += "[SPEAKER" + str(speaker) + "] " + message + "\n"
-            speaker = 1-speaker # alternate [SPEAKER0] and [SPEAKER1]
+        # Get messages as raw data (not converted to conversation format)
+        messages_data = get_messages_by_tree(session, tree_id, end_message_id, to_conversation=False)
         
-
+        # Parse the conversation JSON to get the actual message content
+        conversation_json = get_messages_by_tree(session, tree_id, end_message_id, to_conversation=True)
+        conversation_data = json.loads(conversation_json)
+        
+        tts_string = ""
+        speaker = 0  # 0 is belinda, 1 is man_en. Pick this based on who you want to speak first.
+        
+        # Extract statements from conversation data
+        # The structure is: {"conversation": [{"party": "...", "statement": "..."}]}
+        conversation_list = conversation_data.get("conversation", [])
+        for item in conversation_list:
+            statement = item.get("statement", "")
+            # Only add non-empty statements
+            if statement and statement.strip():
+                tts_string += "[SPEAKER" + str(speaker) + "] " + statement + "\n"
+                speaker = 1 - speaker  # alternate [SPEAKER0] and [SPEAKER1]
         # audio generation
         # Get the absolute path to the sample_audios directory
         current_dir = os.path.dirname(os.path.abspath(__file__))

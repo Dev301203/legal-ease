@@ -20,7 +20,7 @@ import {
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { toaster } from "@/components/ui/toaster"
-import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw, FiTrash2 } from "react-icons/fi"
+import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw, FiTrash2, FiRotateCw } from "react-icons/fi"
 import type { DialogueNode, ResponseOption } from "@/types/scenario"
 import {
   loadSimulationTree,
@@ -30,6 +30,7 @@ import {
   createBookmark,
   getBookmarks,
   deleteBookmark,
+  getConversationAudio,
 } from "@/services/scenarioService"
 import {
   buildDialogueTreeFromMessages,
@@ -78,7 +79,7 @@ function SimulationPage() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   const [scenarioName, setScenarioName] = useState("")
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false)
-  const [narrationUrl] = useState<string | null>(null)
+  const [narrationUrl, setNarrationUrl] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string>("current")
   const [viewMode, setViewMode] = useState<"conversation" | "tree">("conversation")
   const [bookmarks, setBookmarks] = useState<Array<{
@@ -519,26 +520,83 @@ const handleStopRecording = async () => {
   }
 
   // Handle generate voiceover
-  const handleGenerateVoiceover = () => {
+  const handleGenerateVoiceover = async () => {
+    if (!currentMessageId || !simulationId) {
+      toaster.create({
+        title: "Cannot generate narration",
+        description: "No message selected",
+        type: "warning",
+      })
+      return
+    }
+
     setIsGeneratingVoiceover(true)
-    // TODO: Implement real audio generation with backend
-    toaster.create({
-      title: "Audio generation not yet implemented",
-      description: "This feature will call the backend audio API",
-      type: "info",
-    })
-    setIsGeneratingVoiceover(false)
+
+    try {
+      // Fetch audio from backend
+      const audioBlob = await getConversationAudio(simulationId, currentMessageId)
+      
+      // Create object URL for the audio blob
+      const audioUrl = URL.createObjectURL(audioBlob)
+      setNarrationUrl(audioUrl)
+
+      toaster.create({
+        title: "Narration generated",
+        description: "Audio narration has been created successfully.",
+        type: "success",
+        duration: 3000,
+      })
+    } catch (err: any) {
+      console.error("Error generating voiceover:", err)
+      toaster.create({
+        title: "Failed to generate narration",
+        description: err.message || "An error occurred while generating audio.",
+        type: "error",
+        duration: 5000,
+      })
+    } finally {
+      setIsGeneratingVoiceover(false)
+    }
   }
 
-  const handlePlayNarration = () => {
-    if (narrationUrl) {
+  const handlePlayNarration = async () => {
+    if (!narrationUrl) {
+      toaster.create({
+        title: "No narration available",
+        description: "Please generate narration first.",
+        type: "warning",
+      })
+      return
+    }
+
+    try {
       const audio = new Audio(narrationUrl)
-      audio.play()
+      
+      // Handle audio events
+      audio.onerror = (e) => {
+        console.error("Audio playback error:", e)
+        toaster.create({
+          title: "Failed to play audio",
+          description: "The audio file could not be played.",
+          type: "error",
+        })
+      }
+
+      // Play the audio
+      await audio.play()
+      
       toaster.create({
         title: "Playing narration",
-        description: "Audio playback has started.",
+        description: "Audio playback started.",
         type: "info",
         duration: 2000,
+      })
+    } catch (err: any) {
+      console.error("Error playing audio:", err)
+      toaster.create({
+        title: "Failed to play audio",
+        description: err.message || "Could not start audio playback.",
+        type: "error",
       })
     }
   }
@@ -652,22 +710,53 @@ const handleStopRecording = async () => {
               </ScrollArea.Root>
               <Box p={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
                 <VStack gap={2} width="100%">
-                  <Button
-                    width="100%"
-                    variant="outline"
-                    size="sm"
-                    color="darkGrey.text"
-                    borderColor="darkGrey.text"
-                    _hover={{ bg: "gray.100" }}
-                    onClick={
-                      narrationUrl ? handlePlayNarration : handleGenerateVoiceover
-                    }
-                    loading={isGeneratingVoiceover}
-                    loadingText="Generating..."
-                  >
-                    {narrationUrl ? <FiPlay /> : <FiMic />}
-                    {narrationUrl ? "Play" : "Generate Narration"}
-                  </Button>
+                  {narrationUrl ? (
+                    <>
+                      <HStack width="100%" gap={2}>
+                        <Button
+                          flex={1}
+                          variant="outline"
+                          size="sm"
+                          color="darkGrey.text"
+                          borderColor="darkGrey.text"
+                          _hover={{ bg: "gray.100" }}
+                          onClick={handlePlayNarration}
+                        >
+                          <FiPlay />
+                          Play
+                        </Button>
+                        <Button
+                          flex={1}
+                          variant="outline"
+                          size="sm"
+                          color="darkGrey.text"
+                          borderColor="darkGrey.text"
+                          _hover={{ bg: "gray.100" }}
+                          onClick={handleGenerateVoiceover}
+                          loading={isGeneratingVoiceover}
+                          loadingText="Generating..."
+                        >
+                          <FiRotateCw />
+                          Regenerate
+                        </Button>
+                      </HStack>
+                    </>
+                  ) : (
+                    <Button
+                      width="100%"
+                      variant="outline"
+                      size="sm"
+                      color="darkGrey.text"
+                      borderColor="darkGrey.text"
+                      _hover={{ bg: "gray.100" }}
+                      onClick={handleGenerateVoiceover}
+                      loading={isGeneratingVoiceover}
+                      loadingText="Generating..."
+                    >
+                      <FiMic />
+                      Generate Narration
+                    </Button>
+                  )}
                   <Button
                     width="100%"
                     variant="outline"
@@ -737,22 +826,53 @@ const handleStopRecording = async () => {
               </ScrollArea.Root>
               <Box p={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
                 <VStack gap={2} width="100%">
-                  <Button
-                    width="100%"
-                    variant="outline"
-                    size="sm"
-                    color="darkGrey.text"
-                    borderColor="darkGrey.text"
-                    _hover={{ bg: "gray.100" }}
-                    onClick={
-                      narrationUrl ? handlePlayNarration : handleGenerateVoiceover
-                    }
-                    loading={isGeneratingVoiceover}
-                    loadingText="Generating..."
-                  >
-                    {narrationUrl ? <FiPlay /> : <FiMic />}
-                    {narrationUrl ? "Play" : "Generate Narration"}
-                  </Button>
+                  {narrationUrl ? (
+                    <>
+                      <HStack width="100%" gap={2}>
+                        <Button
+                          flex={1}
+                          variant="outline"
+                          size="sm"
+                          color="darkGrey.text"
+                          borderColor="darkGrey.text"
+                          _hover={{ bg: "gray.100" }}
+                          onClick={handlePlayNarration}
+                        >
+                          <FiPlay />
+                          Play
+                        </Button>
+                        <Button
+                          flex={1}
+                          variant="outline"
+                          size="sm"
+                          color="darkGrey.text"
+                          borderColor="darkGrey.text"
+                          _hover={{ bg: "gray.100" }}
+                          onClick={handleGenerateVoiceover}
+                          loading={isGeneratingVoiceover}
+                          loadingText="Generating..."
+                        >
+                          <FiRotateCw />
+                          Regenerate
+                        </Button>
+                      </HStack>
+                    </>
+                  ) : (
+                    <Button
+                      width="100%"
+                      variant="outline"
+                      size="sm"
+                      color="darkGrey.text"
+                      borderColor="darkGrey.text"
+                      _hover={{ bg: "gray.100" }}
+                      onClick={handleGenerateVoiceover}
+                      loading={isGeneratingVoiceover}
+                      loadingText="Generating..."
+                    >
+                      <FiMic />
+                      Generate Narration
+                    </Button>
+                  )}
                   <Button
                     width="100%"
                     variant="outline"
