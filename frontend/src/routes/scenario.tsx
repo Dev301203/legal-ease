@@ -438,6 +438,46 @@ const handleStopRecording = async () => {
     })
   }
 
+  // Handle regenerate responses
+  const handleRegenerateResponses = async () => {
+    if (!currentMessageId || !simulationId || !caseId) return
+
+    setIsGeneratingResponses(true)
+
+    try {
+      // Call continue-conversation with refresh=true to regenerate
+      await continueConversation(caseId, currentMessageId, simulationId, true)
+
+      // Reload the full tree from backend to get the newly generated subtree
+      const updatedMessages = await loadSimulationTree(simulationId)
+      const freshTree = buildDialogueTreeFromMessages(updatedMessages)
+
+      if (!freshTree) {
+        throw new Error("Failed to rebuild dialogue tree after regeneration")
+      }
+
+      // Update state with fresh tree
+      setFullTree(freshTree)
+
+      toaster.create({
+        title: "Responses regenerated",
+        description: "New response options have been generated.",
+        type: "success",
+        duration: 3000,
+      })
+    } catch (err: any) {
+      console.error("Error regenerating responses:", err)
+      toaster.create({
+        title: "Failed to regenerate responses",
+        description: err.message || "An error occurred while regenerating.",
+        type: "error",
+        duration: 5000,
+      })
+    } finally {
+      setIsGeneratingResponses(false)
+    }
+  }
+
   // Handle save scenario
   const handleSaveScenario = async () => {
     if (!scenarioName.trim() || !currentMessageId || !simulationId) return
@@ -992,13 +1032,7 @@ const handleStopRecording = async () => {
                         size="xs"
                         color="#3A3A3A"
                         _hover={{ bg: "gray.100" }}
-                        onClick={() => {
-                          // TODO: Implement regenerate functionality
-                          toaster.create({
-                            title: "Regenerate not yet implemented",
-                            type: "info",
-                          })
-                        }}
+                        onClick={handleRegenerateResponses}
                       >
                         <Icon as={FiRefreshCw} boxSize={4} />
                       </Button>

@@ -11,6 +11,8 @@ from app.schemas import ScenariosTreeResponse
 from app.models import Simulation, Message
 from sqlmodel import Session, select
 from typing import Dict, Any
+import asyncio
+import concurrent.futures
 
 router = APIRouter()
 
@@ -29,9 +31,48 @@ def get_boson_client():
         )
     return OpenAI(api_key=settings.BOSON_API_KEY, base_url="https://hackathon.boson.ai/v1")
 
+def _create_tree_single(case_background: str, previous_statements: str, simulation_goal: str, last_message: str = None, client: OpenAI = None, system_message: str = None) -> Dict[str, Any]:
+    """
+    Helper function to create a tree with a single API call.
+    Returns the parsed result or None if parsing fails.
+    """
+    if client is None:
+        client = get_boson_client()
+    
+    # Create the conversation with the AI model
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": "Generate the legal negotiation dialogue tree now."}
+    ]
+    
+    try:
+        # Make API call to Qwen3-32B-thinking-Hackathon model
+        response = client.chat.completions.create(
+            model="Qwen3-32B-thinking-Hackathon",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=4000,
+            response_format={"type": "json_object"}
+        )
+        
+        # Extract the response content
+        tree_content = response.choices[0].message.content
+
+        # Try to parse as JSON
+        import json
+        tree_data = json.loads(tree_content)
+        # Validate the response structure
+        scenarios_response = ScenariosTreeResponse(**tree_data)
+        return scenarios_response.model_dump()
+    except Exception as e:
+        # Return None if parsing fails
+        print(f"Failed to parse response: {str(e)}")
+        return None
+
 def create_tree(case_background: str, previous_statements: str, simulation_goal: str, last_message: str = None, refresh: bool = False) -> Dict[str, Any]:
     """
     Create a tree of messages based on the case background and previous statements.
+    Makes 3 parallel API calls and keeps the first valid response.
     Uses the Qwen3-32B-thinking-Hackathon model to generate a structured 3-level dialogue tree.
     """
     try:
@@ -124,44 +165,36 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
             "Each Level 2 response contains 3 Level 3 responses in its \"responses\" array."
         )
         
-        # Create the conversation with the AI model
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": "Generate the legal negotiation dialogue tree now."}
-        ]
+        # Make 3 parallel API calls using ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [
+                executor.submit(_create_tree_single, case_background, previous_statements, simulation_goal, last_message, client, system_message)
+                for _ in range(3)
+            ]
+            
+            # Wait for the first valid result
+            results = []
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    # Cancel remaining futures
+                    for f in futures:
+                        f.cancel()
+                    return result
+                results.append(result)
         
-        # Make API call to Qwen3-32B-thinking-Hackathon model
-        response = client.chat.completions.create(
-            model="Qwen3-32B-thinking-Hackathon",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=4000,
-            response_format={"type": "json_object"}
-        )
-        
-        # Extract the response content
-        tree_content = response.choices[0].message.content
-
-        # Try to parse as JSON
-        try:
-            import json
-            tree_data = json.loads(tree_content)
-            # Validate the response structure
-            scenarios_response = ScenariosTreeResponse(**tree_data)
-            return scenarios_response.model_dump()
-        except (json.JSONDecodeError, ValueError) as e:
-            # If JSON parsing fails, return a structured response
-            return {
-                "error": f"Failed to parse JSON response: {str(e)}",
-                "raw_response": tree_content,
-                "scenarios_tree": {
-                    "speaker": "A",
-                    "line": "Error: Could not generate proper dialogue tree",
-                    "level": 1,
-                    "reflects_personality": "System error occurred",
-                    "responses": []
-                }
+        # If all 3 attempts failed, return error response
+        return {
+            "error": "All 3 parallel attempts failed to generate valid response",
+            "raw_response": "Failed to parse JSON from all 3 API calls",
+            "scenarios_tree": {
+                "speaker": "A",
+                "line": "Error: Could not generate proper dialogue tree",
+                "level": 1,
+                "reflects_personality": "System error occurred",
+                "responses": []
             }
+        }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating tree: {str(e)}")
