@@ -1,0 +1,96 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: legal-ease-db
+    env: docker
+    plan: free
+    region: oregon
+    ipAllowList: []
+
+  # Backend API Service
+  - type: web
+    name: legal-ease-backend
+    env: docker
+    region: oregon
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: bash scripts/render-start.sh
+    healthCheckPath: /api/v1/utils/health-check
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DOMAIN
+        sync: false
+      - key: FRONTEND_HOST
+        sync: false
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FIRST_SUPERUSER
+        sync: false
+      - key: FIRST_SUPERUSER_PASSWORD
+        generateValue: true
+      - key: POSTGRES_SERVER
+        fromDatabase:
+          name: legal-ease-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: legal-ease-db
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: legal-ease-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: legal-ease-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: legal-ease-db
+          property: password
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAILS_FROM_EMAIL
+        sync: false
+      - key: SMTP_TLS
+        value: True
+      - key: SMTP_SSL
+        value: False
+      - key: SMTP_PORT
+        value: 587
+      - key: SENTRY_DSN
+        sync: false
+      - key: BOSON_API_KEY
+        sync: false
+      - key: PROJECT_NAME
+        value: Legal-ease
+
+  # Frontend Static Site
+  - type: web
+    name: legal-ease-frontend
+    env: docker
+    region: oregon
+    plan: free
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: legal-ease-backend
+          envVarKey: RENDER_EXTERNAL_URL
+
+databases:
+  - name: legal-ease-db
+    databaseName: legal_ease
+    user: legal_ease_user
+    plan: free
+    region: oregon

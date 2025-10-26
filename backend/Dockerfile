@@ -41,4 +41,6 @@ COPY ./tests /app/tests
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
+# Default command for local development (docker-compose)
+# For Render deployment, this is overridden in render.yaml
 CMD ["fastapi", "run", "--workers", "4", "app/main.py"]
