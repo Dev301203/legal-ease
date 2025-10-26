@@ -19,35 +19,6 @@ def get_session():
     with Session(engine) as session:
         yield session
 
-def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
-    """
-    Get the ID of the last selected message in a tree.
-    Returns the ID of the deepest selected message in the tree.
-    """
-    # Get all selected messages in the tree
-    statement = select(Message).where(
-        (Message.tree_id == tree_id) & (Message.selected == True)
-    )
-    messages = session.exec(statement).all()
-    
-    if not messages:
-        raise HTTPException(status_code=404, detail=f"No selected messages found in tree {tree_id}")
-    
-    # Find the deepest selected message (the one with no selected children)
-    for msg in messages:
-        # Check if this message has any selected children
-        has_selected_children = session.exec(
-            select(Message).where(
-                (Message.parent_id == msg.id) & (Message.selected == True)
-            )
-        ).first() is not None
-        
-        if not has_selected_children:
-            return msg.id
-    
-    # Fallback: return the message with the highest ID
-    return max(msg.id for msg in messages)
-
 # Boson AI client configuration
 def get_boson_client():
     """Get Boson AI client with proper error handling"""

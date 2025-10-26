@@ -6,7 +6,7 @@ from sqlmodel import Session, select, func
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
-from app.api.routes.audio_models import get_session, summarize_background_helper
+from app.api.routes.audio_models import get_session, summarize_background_helper, summarize_dialogue
 from app.crud import get_messages_by_tree, get_selected_messages_between, \
     get_tree, delete_messages_after_children, get_message_children, \
     update_message_selected, get_case_context, delete_messages_including_children, \
@@ -34,7 +34,7 @@ def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
     """
     # Get all selected messages in the tree
     statement = select(Message).where(
-        (Message.tree_id == tree_id) & (Message.selected == True)
+        (Message.simulation_id == tree_id) & (Message.selected == True)
     )
     messages = session.exec(statement).all()
 
@@ -240,7 +240,7 @@ def select_message(message_id: int, db: Session = Depends(get_session)):
 
 @router.post("/messages/create", response_model=Message)
 def create_message(
-    tree_id: int,
+    simulation_id: int,
     parent_id: int | None,
     content: str,
     role: str,
@@ -251,7 +251,7 @@ def create_message(
     Used for custom user responses that aren't from the predefined options.
     """
     new_message = Message(
-        tree_id=tree_id,
+        simulation_id=simulation_id,
         parent_id=parent_id,
         content=content,
         role=role,
@@ -263,6 +263,45 @@ def create_message(
     db.refresh(new_message)
 
     return new_message
+
+
+class SummarizedMessageRequest(BaseModel):
+    simulation_id: int
+    parent_id: int | None
+    user_input: str
+    role: str
+    desired_length: int = 15
+
+
+@router.post("/messages/create-summarized", response_model=Message)
+async def create_summarized_message(
+    request: SummarizedMessageRequest,
+    db: Session = Depends(get_session),
+):
+    """
+    Create a new message with content summarized from user input using AI.
+    Summarizes the user_input and creates a Message object with the summarized content.
+    """
+    try:
+        # Summarize the user input
+        summary_result = await summarize_dialogue(request.user_input, request.desired_length)
+        summarized_content = summary_result.get("message", "") if summary_result.get("message") else request.user_input
+        
+        # Create the message
+        new_message = Message(
+            simulation_id=request.simulation_id,
+            parent_id=request.parent_id,
+            content=summarized_content,
+            role=request.role,
+        )
+
+        db.add(new_message)
+        db.commit()
+        db.refresh(new_message)
+
+        return new_message
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating summarized message: {str(e)}")
 
 class CaseCreate(BaseModel):
     name: str
