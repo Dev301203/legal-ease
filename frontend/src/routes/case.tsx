@@ -56,10 +56,170 @@ function CasePage() {
   const [caseData, setCaseData] = useState<CaseData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
   const [saving, setSaving] = useState(false)
+  const [isEditBackgroundOpen, setIsEditBackgroundOpen] = useState(false)
+  const [editedBackground, setEditedBackground] = useState<CaseBackground>({
+    party_a: "",
+    party_b: "",
+    key_issues: "",
+    general_notes: "",
+  })
 
   const [isNewSimulationOpen, setIsNewSimulationOpen] = useState(false)
   const [simulationBrief, setSimulationBrief] = useState("")
+
+// const [recognition, setRecognition] = useState<any>(null)
+const [isRecording, setIsRecording] = useState(false)
+const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+// const [audioChunks, setAudioChunks] = useState<Blob[]>([])
+//
+
+
+const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+
+const handleStartRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    setAudioChunks(chunks);
+
+    recorder.ondataavailable = (event) => {
+      chunks.push(event.data);
+    };
+
+    recorder.start();
+    setMediaRecorder(recorder);
+    setIsRecording(true);
+  } catch (err) {
+    console.error("Microphone access denied or unavailable:", err);
+  }
+};
+
+const handleStopRecording = async () => {
+  if (mediaRecorder) {
+    mediaRecorder.onstop = async () => {
+      try {
+        // Convert recorded chunks to ArrayBuffer
+        const blob = new Blob(audioChunks);
+        const arrayBuffer = await blob.arrayBuffer();
+
+        // Decode audio
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+        // Encode to WAV
+        const wavBlob = encodeWAV(audioBuffer);
+
+        // Send to backend
+        const formData = new FormData();
+        formData.append("audio_file", wavBlob, "recording.wav");
+
+        const response = await fetch("http://localhost:8000/api/v1/transcribe-audio", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) throw new Error(`Transcription failed: ${response.status}`);
+
+        const data = await response.json();
+        const transcript = data.message;
+
+        // Update the general_notes in state
+        setEditedBackground((prev) => ({
+          ...prev,
+          general_notes: prev.general_notes
+            ? prev.general_notes + "\n" + transcript
+            : transcript,
+        }));
+        setCaseData((prev) =>
+          prev
+            ? {
+                ...prev,
+                background: {
+                  ...prev.background,
+                  general_notes: prev.background.general_notes
+                    ? prev.background.general_notes + "\n" + transcript
+                    : transcript,
+                },
+              }
+            : prev
+        );
+
+      } catch (err) {
+        console.error("Error sending audio to backend:", err);
+      } finally {
+        setIsRecording(false);
+        setAudioChunks([]);
+      }
+    };
+
+    mediaRecorder.stop();
+  }
+};
+
+// WAV encoding function
+function encodeWAV(audioBuffer: AudioBuffer) {
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const format = 1; // PCM
+  const bitsPerSample = 16;
+
+  const samples = interleave(audioBuffer);
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  // RIFF chunk descriptor
+  writeString(view, 0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(view, 8, "WAVE");
+
+  // fmt subchunk
+  writeString(view, 12, "fmt ");
+  view.setUint32(16, 16, true); // subchunk1 size
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);
+  view.setUint16(32, numChannels * bitsPerSample / 8, true);
+  view.setUint16(34, bitsPerSample, true);
+
+  // data subchunk
+  writeString(view, 36, "data");
+  view.setUint32(40, samples.length * 2, true);
+
+  // write PCM samples
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    let s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+
+  return new Blob([view], { type: "audio/wav" });
+}
+
+// Helper: interleave channels
+function interleave(buffer: AudioBuffer) {
+  const numChannels = buffer.numberOfChannels;
+  const length = buffer.length;
+  const result = new Float32Array(length * numChannels);
+
+  for (let i = 0; i < length; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      result[i * numChannels + ch] = buffer.getChannelData(ch)[i];
+    }
+  }
+  return result;
+}
+
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
+}
+
+
 
   // 🧭 Redirect if no case ID
   useEffect(() => {
@@ -121,7 +281,7 @@ useEffect(() => {
 
   const handleSaveCase = async () => {
     if (!caseData) return
-    
+
     setSaving(true)
     try {
       const response = await fetch(`http://localhost:8000/api/v1/cases/${caseData.id}`, {
@@ -156,6 +316,11 @@ useEffect(() => {
     setSimulationBrief("")
     setIsNewSimulationOpen(true)
   }
+
+  const handleSaveBackground = () => { setIsEditBackgroundOpen(false) }
+
+
+  const handleCancelBackground = () => { setIsEditBackgroundOpen(false) }
 
   const handleGenerateSimulation = () => {
     if (simulationBrief.trim()) {
@@ -229,9 +394,9 @@ useEffect(() => {
                 <Heading fontSize="lg" color="#3A3A3A">
                   Summary
                 </Heading>
-                <Textarea 
+                <Textarea
                   value={caseData.summary}
-                  onChange={(e) => setCaseData({ ...caseData, summary: e.target.value })} 
+                  onChange={(e) => setCaseData({ ...caseData, summary: e.target.value })}
                   fontSize="md"
                   color="#666"
                   lineHeight="1.6"
@@ -262,10 +427,10 @@ useEffect(() => {
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
                         Party A (Our Client)
                       </Text>
-                      <Textarea 
-                        value={caseData.background.party_a} 
-                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_a: e.target.value } })} 
-                        rows={2} 
+                      <Textarea
+                        value={caseData.background.party_a}
+                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_a: e.target.value } })}
+                        rows={2}
                       />
                     </Box>
 
@@ -273,10 +438,10 @@ useEffect(() => {
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
                         Party B (Opposing Party)
                       </Text>
-                      <Textarea 
-                        value={caseData.background.party_b} 
-                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_b: e.target.value } })} 
-                        rows={2} 
+                      <Textarea
+                        value={caseData.background.party_b}
+                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_b: e.target.value } })}
+                        rows={2}
                       />
                     </Box>
 
@@ -284,22 +449,42 @@ useEffect(() => {
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
                         Key Issues
                       </Text>
-                      <Textarea 
-                        value={caseData.background.key_issues} 
-                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, key_issues: e.target.value } })} 
+                      <Textarea
+                        value={caseData.background.key_issues}
+                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, key_issues: e.target.value } })}
                       />
                     </Box>
 
-                    <Box width="100%">
-                      <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
-                        General Notes
-                      </Text>
-                      <Textarea 
-                        value={caseData.background.general_notes} 
-                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, general_notes: e.target.value } })} 
-                        rows={3} 
-                      />
-                    </Box>
+         <Box width="100%">
+          <HStack justifyContent="space-between" alignItems="center" mb={2}>
+            <Text fontSize="sm" fontWeight="medium" color="#3A3A3A">
+              General Notes
+            </Text>
+          <Button
+            size="sm"
+            variant="outline"
+            colorScheme={isRecording ? "red" : "gray"}
+            onClick={() => {
+              if (isRecording) {
+                handleStopRecording()
+              } else {
+                handleStartRecording()
+              }
+            }}
+          >
+            {isRecording ? "Stop Recording" : "🎤 Record"}
+          </Button>
+
+          </HStack>
+
+          <Textarea
+            value={caseData.background.general_notes}
+            readOnly
+            rows={4}
+            bg="gray.50"
+            borderColor="gray.200"
+          />
+        </Box>
 
                     {/* Save Button */}
                     <Box width="100%" display="flex" justifyContent="flex-end" mt={2}>
@@ -368,6 +553,86 @@ useEffect(() => {
           </VStack>
         </VStack>
       </Container>
+
+      {/* Edit Background Dialog */}
+      <Dialog.Root open={isEditBackgroundOpen} onOpenChange={(e) => setIsEditBackgroundOpen(e.open)}>
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content maxW="600px">
+            <Dialog.Header>
+              <Dialog.Title>Edit Background</Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body>
+              <VStack gap={4} alignItems="flex-start" width="100%">
+                {["party_a", "party_b", "key_issues", "general_notes"].map((field) => (
+                  field === "general_notes" ? (
+                    <Box width="100%" key={field}>
+                      <HStack justifyContent="space-between" alignItems="center" mb={2}>
+                        <Text fontSize="sm" fontWeight="medium" color="#3A3A3A">
+                          GENERAL NOTES
+                        </Text>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorScheme={isRecording ? "red" : "gray"}
+                        onClick={() => {
+                          if (isRecording) {
+                            handleStopRecording()
+                          } else {
+                            handleStartRecording()
+                          }
+                        }}
+                      >
+                        {isRecording ? "Stop Recording" : "🎤 Record"}
+                      </Button>
+                      </HStack>
+                      <Textarea
+                        value={editedBackground.general_notes}
+                        onChange={(e) =>
+                          setEditedBackground({
+                            ...editedBackground,
+                            general_notes: e.target.value,
+                          })
+                        }
+                        rows={4}
+                      />
+                    </Box>
+                  ) : (
+                    <Box width="100%" key={field}>
+                      <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
+                        {field.replace("_", " ").toUpperCase()}
+                      </Text>
+                      <Textarea
+                        value={(editedBackground as any)[field]}
+                        onChange={(e) =>
+                          setEditedBackground({
+                            ...editedBackground,
+                            [field]: e.target.value,
+                          })
+                        }
+                        rows={field === "key_issues" ? 3 : 2}
+                      />
+                    </Box>
+                  )
+                ))}
+              </VStack>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Dialog.CloseTrigger asChild>
+                <Button variant="outline" onClick={handleCancelBackground}>
+                  Cancel
+                </Button>
+              </Dialog.CloseTrigger>
+              <Button bg="#3A3A3A" color="#F4ECD8" _hover={{ bg: "#2A2A2A" }} onClick={handleSaveBackground}>
+                Save
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+
+
 
       {/* New Simulation Dialog */}
       <Dialog.Root open={isNewSimulationOpen} onOpenChange={(e: any) => setIsNewSimulationOpen(e.open)}>
