@@ -2,16 +2,16 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
 from app.api.routes.audio_models import get_session, summarize_background_helper
 from app.crud import get_messages_by_tree, get_selected_messages_between, \
     get_tree, delete_messages_after_children, get_message_children, \
-    update_message_selected, get_case_context
-from app.models import Message
-from app.schemas import TreeResponse
+    update_message_selected, get_case_context, delete_messages_including_children, create_simulation
+from app.models import Message, Case, Simulation
+from app.schemas import TreeResponse, SimulationCreate, SimulationResponse, CaseWithTreeCount
 from app.api.routes.tree_generation import create_tree, save_messages_to_tree
 
 from app.models import Message, Case, Simulation
@@ -540,3 +540,26 @@ async def update_case(
         last_modified=case.last_modified,
         scenario_count=0  # We could compute this if needed
     )
+
+
+@router.post("/simulations", response_model=SimulationResponse)
+def create_simulation_endpoint(
+    simulation_data: SimulationCreate,
+    db: Session = Depends(get_session)
+):
+    """
+    Create a new simulation with headline, brief, and case_id.
+    """
+    try:
+        simulation = create_simulation(session=db, simulation_create=simulation_data)
+        return SimulationResponse(
+            id=simulation.id,
+            headline=simulation.headline,
+            brief=simulation.brief,
+            created_at=simulation.created_at,
+            case_id=simulation.case_id
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating simulation: {str(e)}")
