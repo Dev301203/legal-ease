@@ -92,7 +92,8 @@ const EditItem = ({ item }: EditItemProps) => {
             <DialogTitle>Edit Item</DialogTitle>
           </DialogHeader>
           <DialogBody>
-            <Text mb={4}>Update the item details below.</Text>
+            <Text mb={4}>Update the item details b
+              elow.</Text>
             <VStack gap={4}>
               <Field
                 required

@@ -28,13 +28,24 @@ const config = defineConfig({
     tokens: {
       colors: {
         ui: {
-          main: { value: "#009688" },
+          main: { value: "#748E54" },
         },
         sepia: {
           bg: { value: "#F4ECD8" },
         },
         darkGrey: {
           text: { value: "#3A3A3A" },
+        },
+        salmon: {
+          500: { value: "#E07A5F" },
+          600: { value: "#D46A4D" },
+        },
+        slate: {
+          500: { value: "#9FA0C3" },
+          600: { value: "#8F90B3" },
+        },
+        olive: {
+          500: { value: "#748E54" },
         },
       },
       fonts: {
