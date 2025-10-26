@@ -24,8 +24,7 @@ import type { DialogueNode, ResponseOption } from "@/types/scenario"
 import {
   loadSimulationTree,
   continueConversation,
-  createCustomMessage,
-  selectMessage,
+  createCustomMessage
 } from "@/services/scenarioService"
 import {
   buildDialogueTreeFromMessages,
@@ -282,42 +281,39 @@ const handleStopRecording = async () => {
     setIsGeneratingResponses(true)
 
     try {
+      // Determine the role from the current node's children
+      // The custom response should match the role of the available options
+      const node = findNodeInTree(fullTree, String(currentMessageId))
+      const role = node && node.children && node.children.length > 0 
+        ? node.children[0].party // Get role from first child
+        : "user" // Default fallback
+
+      console.log("role", role)
+
       // Step 1: Create the custom message in the backend
       const newMessage = await createCustomMessage(
         simulationId,
         currentMessageId,
         customResponse,
-        "user"
+        role
       )
 
-      // Step 2: Mark it as selected
-      await selectMessage(newMessage.id)
-
-      // Step 3: Add to local tree
-      // let updatedTree = addCustomMessageToTree(
-      //   fullTree,
-      //   String(currentMessageId),
-      //   newMessage.id,
-      //   customResponse,
-      //   "user"
-      // )
-
-      // Step 4: Call continue-conversation to generate AI responses
+      // Step 3: Call continue-conversation to generate AI responses
       await continueConversation(caseId, newMessage.id, simulationId, false)
 
-      // Step 5: Reload the full tree from backend to get the newly generated subtree
+      // Step 4: Reload the full tree from backend to get the newly generated subtree
       const updatedMessages = await loadSimulationTree(simulationId)
-      const freshTree = buildDialogueTreeFromMessages(updatedMessages)
+      const freshTree = buildDialogueTreeFromMessages(updatedMessages)  
 
       if (!freshTree) {
         throw new Error("Failed to rebuild dialogue tree after generation")
       }
 
-      // Step 6: Update state with fresh tree
+      // Step 5: Update state with fresh tree
       setFullTree(freshTree)
       setCustomResponse("")
 
-      // Step 7: Navigate to the new custom message node
+      // Step 6: Navigate to the new custom message node
       navigate({
         to: "/scenario",
         search: {
@@ -355,14 +351,11 @@ const handleStopRecording = async () => {
 
       const messageIdNum = Number(responseId)
 
-      // Step 1: Mark message as selected in backend
-      await selectMessage(messageIdNum)
-
-      // Step 2: Update local tree selection immediately
+      // Step 1: Update local tree selection immediately
       const updatedTree = updateSelectedPath(fullTree, responseId)
       setFullTree(updatedTree)
 
-      // Step 3: Navigate to selected node immediately (updates UI)
+      // Step 2: Navigate to selected node immediately (updates UI)
       navigate({
         to: "/scenario",
         search: {
@@ -372,7 +365,7 @@ const handleStopRecording = async () => {
         },
       })
 
-      // Step 4: Check if this is a leaf node and generate responses
+      // Step 3: Check if this is a leaf node and generate responses
       if (isLeafNode(selectedNode)) {
         // Set loading state after UI update
         setIsGeneratingResponses(true)

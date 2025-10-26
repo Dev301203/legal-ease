@@ -78,21 +78,23 @@ export async function continueConversation(
  * @throws Error if creation fails
  */
 export async function createCustomMessage(
-  treeId: number,
+  simulationId: number,
   parentId: number | null,
   content: string,
   role: string = "user"
 ): Promise<MessageCreateResponse> {
-  const response = await fetch(`${API_BASE}/messages/create`, {
+  // Use the summarized endpoint which summarizes the user input before creating the message
+  const response = await fetch(`${API_BASE}/messages/create-summarized`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      tree_id: treeId,
+      simulation_id: simulationId,
       parent_id: parentId,
-      content,
+      user_input: content,
       role,
+      desired_length: 15, // Summarize to 15 words
     }),
   })
 
