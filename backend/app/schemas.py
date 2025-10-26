@@ -55,7 +55,7 @@ def map_role_to_party(role: str) -> str:
 def messages_to_conversation(messages: list[Message]) -> ConversationResponse:
     conversation_turns = [
         ConversationTurn(
-            party=map_role_to_party(msg.role),
+            party=msg.role,
             statement=msg.content
         )
         for msg in messages

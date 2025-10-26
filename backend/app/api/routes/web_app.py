@@ -104,12 +104,13 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
             delete_messages_including_children(session, message_id)
 
         # Leaf node - generate new messages and save them
-        messages_history = get_messages_by_tree(session, tree_id) or ""
+        messages_history = get_messages_by_tree(session, tree_id, message_id) or ""
         last_message = session.get(Message, message_id)
         last_message_content = last_message.content if last_message else ""
 
         simulation = session.get(Simulation, tree_id)
         simulation_goal = simulation.brief if simulation else "Reach a favorable settlement"
+
 
         # Generate a tree of messages based on the case background and simulation goal
         tree_data = create_tree(case_background, messages_history, simulation_goal, last_message_content, refresh)
@@ -164,7 +165,6 @@ def get_tree_messages_endpoint(
                 "id": msg.id,
                 "role": msg.role,
                 "content": msg.content,
-                "selected": msg.selected,
                 "children": build_tree(msg.id),
             })
         return result
