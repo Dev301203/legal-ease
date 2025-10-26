@@ -784,76 +784,13 @@ const handleStopRecording = async () => {
 
             {/* Bookmarked Tab - Saved Scenarios */}
             <Tabs.Content value="bookmarked" flex={1} display="flex" flexDirection="column" minH={0}>
-              <Box p={4} borderBottom="1px solid" borderColor="gray.200" flexShrink={0}>
-                <VStack gap={2} width="100%">
-                  {narrationUrl ? (
-                    <>
-                      <HStack width="100%" gap={2}>
-                        <Button
-                          flex={1}
-                          variant="outline"
-                          size="sm"
-                          color="darkGrey.text"
-                          borderColor="darkGrey.text"
-                          _hover={{ bg: "gray.100" }}
-                          onClick={handlePlayNarration}
-                        >
-                          <FiPlay />
-                          Play
-                        </Button>
-                        <Button
-                          flex={1}
-                          variant="outline"
-                          size="sm"
-                          color="darkGrey.text"
-                          borderColor="darkGrey.text"
-                          _hover={{ bg: "gray.100" }}
-                          onClick={handleGenerateVoiceover}
-                          loading={isGeneratingVoiceover}
-                          loadingText="Generating..."
-                        >
-                          <FiRotateCw />
-                          Regenerate
-                        </Button>
-                      </HStack>
-                    </>
-                  ) : (
-                    <Button
-                      width="100%"
-                      variant="outline"
-                      size="sm"
-                      color="darkGrey.text"
-                      borderColor="darkGrey.text"
-                      _hover={{ bg: "gray.100" }}
-                      onClick={handleGenerateVoiceover}
-                      loading={isGeneratingVoiceover}
-                      loadingText="Generating..."
-                    >
-                      <FiMic />
-                      Generate Narration
-                    </Button>
-                  )}
-                  <Button
-                    width="100%"
-                    variant="outline"
-                    size="sm"
-                    color="darkGrey.text"
-                    borderColor="darkGrey.text"
-                    _hover={{ bg: "gray.100" }}
-                    onClick={() => setIsSaveModalOpen(true)}
-                  >
-                    <FiSave />
-                    Bookmark
-                  </Button>
-                </VStack>
-              </Box>
               <ScrollArea.Root flex={1} minH={0}>
                 <ScrollArea.Viewport>
                   <ScrollArea.Content p={4} paddingEnd="3" textStyle="sm">
                     <VStack gap={3} alignItems="stretch">
                       {bookmarks.length === 0 ? (
                         <Text fontSize="sm" color="#999" textAlign="center" py={4}>
-                          No bookmarks yet. Create one by clicking "Bookmark" below.
+                          No bookmarks yet. Create one in the "Current" tab.
                         </Text>
                       ) : (
                         bookmarks.map((bookmark) => (
@@ -896,69 +833,6 @@ const handleStopRecording = async () => {
                 </ScrollArea.Viewport>
                 <ScrollArea.Scrollbar />
               </ScrollArea.Root>
-              <Box p={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
-                <VStack gap={2} width="100%">
-                  {narrationUrl ? (
-                    <>
-                      <HStack width="100%" gap={2}>
-                        <Button
-                          flex={1}
-                          variant="outline"
-                          size="sm"
-                          color="darkGrey.text"
-                          borderColor="darkGrey.text"
-                          _hover={{ bg: "gray.100" }}
-                          onClick={handlePlayNarration}
-                        >
-                          <FiPlay />
-                          Play
-                        </Button>
-                        <Button
-                          flex={1}
-                          variant="outline"
-                          size="sm"
-                          color="darkGrey.text"
-                          borderColor="darkGrey.text"
-                          _hover={{ bg: "gray.100" }}
-                          onClick={handleGenerateVoiceover}
-                          loading={isGeneratingVoiceover}
-                          loadingText="Generating..."
-                        >
-                          <FiRotateCw />
-                          Regenerate
-                        </Button>
-                      </HStack>
-                    </>
-                  ) : (
-                    <Button
-                      width="100%"
-                      variant="outline"
-                      size="sm"
-                      color="darkGrey.text"
-                      borderColor="darkGrey.text"
-                      _hover={{ bg: "gray.100" }}
-                      onClick={handleGenerateVoiceover}
-                      loading={isGeneratingVoiceover}
-                      loadingText="Generating..."
-                    >
-                      <FiMic />
-                      Generate Narration
-                    </Button>
-                  )}
-                  <Button
-                    width="100%"
-                    variant="outline"
-                    size="sm"
-                    color="darkGrey.text"
-                    borderColor="darkGrey.text"
-                    _hover={{ bg: "gray.100" }}
-                    onClick={() => setIsSaveModalOpen(true)}
-                  >
-                    <FiSave />
-                    Bookmark
-                  </Button>
-                </VStack>
-              </Box>
             </Tabs.Content>
           </Tabs.Root>
         </Box>
