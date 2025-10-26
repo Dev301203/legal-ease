@@ -1,9 +1,9 @@
-import { Box, Flex, IconButton, Text } from "@chakra-ui/react"
-import { useQueryClient } from "@tanstack/react-query"
+import { Box, Flex, IconButton } from "@chakra-ui/react"
+// import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { FaBars } from "react-icons/fa"
 
-import type { UserPublic } from "@/client"
+// import type { UserPublic } from "@/client"
 import {
   DrawerBackdrop,
   DrawerBody,
@@ -15,8 +15,8 @@ import {
 import SidebarItems from "./SidebarItems"
 
 const Sidebar = () => {
-  const queryClient = useQueryClient()
-  const currentUser = queryClient.getQueryData<UserPublic>(["currentUser"])
+  // const queryClient = useQueryClient()
+  // const currentUser = queryClient.getQueryData<UserPublic>(["currentUser"])
   const [open, setOpen] = useState(false)
 
   return (
@@ -48,11 +48,11 @@ const Sidebar = () => {
               <Box>
                 <SidebarItems onClose={() => setOpen(false)} />
               </Box>
-              {currentUser?.email && (
+              {/* {currentUser?.email && (
                 <Text fontSize="sm" p={2} truncate maxW="sm">
                   Logged in as: {currentUser.email}
                 </Text>
-              )}
+              )} */}
             </Flex>
           </DrawerBody>
           <DrawerCloseTrigger />

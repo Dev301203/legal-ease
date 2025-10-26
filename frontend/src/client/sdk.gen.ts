@@ -3,25 +3,26 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { ItemsReadItemsData, ItemsReadItemsResponse, ItemsCreateItemData, ItemsCreateItemResponse, ItemsReadItemData, ItemsReadItemResponse, ItemsUpdateItemData, ItemsUpdateItemResponse, ItemsDeleteItemData, ItemsDeleteItemResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse } from './types.gen';
+import type { GetContextHistoryData, GetContextHistoryResponse, TranscribeAudioData, TranscribeAudioResponse, SummarizeDialogueData, SummarizeDialogueResponse, SummarizeBackgroundData, SummarizeBackgroundResponse, GetConversationAudioData, GetConversationAudioResponse, ContinueConversationData, ContinueConversationResponse, GetTreeMessagesEndpointData, GetTreeMessagesEndpointResponse, GetSelectedMessagesPathData, GetSelectedMessagesPathResponse, TrimMessagesAfterChildrenData, TrimMessagesAfterChildrenResponse, GetChildrenData, GetChildrenResponse, SelectMessageData, SelectMessageResponse, CreateMessageData, CreateMessageResponse, GetAllCasesResponse, CreateCaseData, CreateCaseResponse, GetCaseWithSimulationsData, GetCaseWithSimulationsResponse, UpdateCaseData, UpdateCaseResponse, GetContextHistory1Response, UploadAudioData, UploadAudioResponse, ProcessWithModelData, ProcessWithModelResponse, GetAvailableModelsResponse, GenerateAudioResponseData, GenerateAudioResponseResponse } from './types.gen';
 
-export class ItemsService {
+export class DefaultService {
     /**
-     * Read Items
-     * Retrieve items.
+     * Get Context History
+     * Get the current context history for the legal case.
+     * For now, returns a pregenerated string.
      * @param data The data for the request.
-     * @param data.skip
-     * @param data.limit
-     * @returns ItemsPublic Successful Response
+     * @param data.caseId
+     * @param data.treeId
+     * @returns ContextResponse Successful Response
      * @throws ApiError
      */
-    public static readItems(data: ItemsReadItemsData = {}): CancelablePromise<ItemsReadItemsResponse> {
+    public static getContextHistory(data: GetContextHistoryData): CancelablePromise<GetContextHistoryResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/items/',
-            query: {
-                skip: data.skip,
-                limit: data.limit
+            url: '/api/v1/context/{case_id}/{tree_id}',
+            path: {
+                case_id: data.caseId,
+                tree_id: data.treeId
             },
             errors: {
                 422: 'Validation Error'
@@ -30,19 +31,20 @@ export class ItemsService {
     }
     
     /**
-     * Create Item
-     * Create new item.
+     * Transcribe Audio
+     * Upload .wav audio file containing user's voice question.
+     * Returns the transcribed text from the audio.
      * @param data The data for the request.
-     * @param data.requestBody
-     * @returns ItemPublic Successful Response
+     * @param data.formData
+     * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static createItem(data: ItemsCreateItemData): CancelablePromise<ItemsCreateItemResponse> {
+    public static transcribeAudio(data: TranscribeAudioData): CancelablePromise<TranscribeAudioResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/items/',
-            body: data.requestBody,
-            mediaType: 'application/json',
+            url: '/api/v1/transcribe-audio',
+            formData: data.formData,
+            mediaType: 'multipart/form-data',
             errors: {
                 422: 'Validation Error'
             }
@@ -50,19 +52,69 @@ export class ItemsService {
     }
     
     /**
-     * Read Item
-     * Get item by ID.
+     * Summarize Dialogue
+     * Takes in a string describing what you want summarized, the desired length to summarize it to.
+     * Returns a shortened summary about desired_length words long, as if a lawyer said it.
      * @param data The data for the request.
-     * @param data.id
-     * @returns ItemPublic Successful Response
+     * @param data.data
+     * @param data.desiredLength
+     * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static readItem(data: ItemsReadItemData): CancelablePromise<ItemsReadItemResponse> {
+    public static summarizeDialogue(data: SummarizeDialogueData): CancelablePromise<SummarizeDialogueResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/summarize-dialogue',
+            query: {
+                data: data.data,
+                desired_length: data.desiredLength
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Summarize Background
+     * API endpoint to summarize text.
+     * Takes in a string describing what you want summarized, the desired lines to summarize it to.
+     * Returns a shortened summary about desired_lines number of lines long.
+     * @param data The data for the request.
+     * @param data.data
+     * @param data.desiredLines
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static summarizeBackground(data: SummarizeBackgroundData): CancelablePromise<SummarizeBackgroundResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/summarize-background',
+            query: {
+                data: data.data,
+                desired_lines: data.desiredLines
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Conversation Audio
+     * Takes a tree_id, for which it gets conversation history messages from the database in order.
+     * Returns the generated audio file as wav.
+     * @param data The data for the request.
+     * @param data.treeId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getConversationAudio(data: GetConversationAudioData): CancelablePromise<GetConversationAudioResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/items/{id}',
+            url: '/api/v1/get-conversation-audio/{tree_id}',
             path: {
-                id: data.id
+                tree_id: data.treeId
             },
             errors: {
                 422: 'Validation Error'
@@ -71,21 +123,21 @@ export class ItemsService {
     }
     
     /**
-     * Update Item
-     * Update an item.
+     * Continue Conversation
+     * Continue a conversation by either generating new messages or returning existing children.
+     * If tree_id is provided:
+     * - If the last selected message is a leaf node, generates new messages and saves them.
+     * - If not a leaf node, returns the existing children of the last selected message.
+     * If no tree_id is provided, assumes no prior history and creates a new tree.
      * @param data The data for the request.
-     * @param data.id
      * @param data.requestBody
-     * @returns ItemPublic Successful Response
+     * @returns TreeResponse Successful Response
      * @throws ApiError
      */
-    public static updateItem(data: ItemsUpdateItemData): CancelablePromise<ItemsUpdateItemResponse> {
+    public static continueConversation(data: ContinueConversationData): CancelablePromise<ContinueConversationResponse> {
         return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/api/v1/items/{id}',
-            path: {
-                id: data.id
-            },
+            method: 'POST',
+            url: '/api/v1/continue-conversation',
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -95,374 +147,311 @@ export class ItemsService {
     }
     
     /**
-     * Delete Item
-     * Delete an item.
+     * Get Tree Messages Endpoint
+     * Return all messages for a specific simulation_id (both selected and unselected)
+     * in a hierarchical chronological structure.
      * @param data The data for the request.
-     * @param data.id
+     * @param data.simulationId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getTreeMessagesEndpoint(data: GetTreeMessagesEndpointData): CancelablePromise<GetTreeMessagesEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/trees/{simulation_id}/messages',
+            path: {
+                simulation_id: data.simulationId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Selected Messages Path
+     * Return all selected messages between start_id and end_id (inclusive),
+     * in chronological order.
+     * @param data The data for the request.
+     * @param data.startId Starting message ID
+     * @param data.endId Ending message ID
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getSelectedMessagesPath(data: GetSelectedMessagesPathData): CancelablePromise<GetSelectedMessagesPathResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/messages/selected-path',
+            query: {
+                start_id: data.startId,
+                end_id: data.endId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Trim Messages After Children
+     * Delete all messages after the children of the given message.
+     * Keeps the given message and its direct children.
+     * @param data The data for the request.
+     * @param data.messageId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static trimMessagesAfterChildren(data: TrimMessagesAfterChildrenData): CancelablePromise<TrimMessagesAfterChildrenResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/messages/trim-after/{message_id}',
+            path: {
+                message_id: data.messageId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Children
+     * Get all direct children of a message.
+     * @param data The data for the request.
+     * @param data.messageId
      * @returns Message Successful Response
      * @throws ApiError
      */
-    public static deleteItem(data: ItemsDeleteItemData): CancelablePromise<ItemsDeleteItemResponse> {
+    public static getChildren(data: GetChildrenData): CancelablePromise<GetChildrenResponse> {
         return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/items/{id}',
+            method: 'GET',
+            url: '/api/v1/messages/{message_id}/children',
             path: {
-                id: data.id
+                message_id: data.messageId
             },
             errors: {
                 422: 'Validation Error'
             }
         });
     }
-}
-
-export class LoginService {
+    
     /**
-     * Login Access Token
-     * OAuth2 compatible token login, get an access token for future requests
+     * Select Message
+     * Mark a message as selected=True.
      * @param data The data for the request.
-     * @param data.formData
-     * @returns Token Successful Response
+     * @param data.messageId
+     * @returns Message Successful Response
      * @throws ApiError
      */
-    public static loginAccessToken(data: LoginLoginAccessTokenData): CancelablePromise<LoginLoginAccessTokenResponse> {
+    public static selectMessage(data: SelectMessageData): CancelablePromise<SelectMessageResponse> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/v1/messages/{message_id}/select',
+            path: {
+                message_id: data.messageId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Create Message
+     * Create a new message in the conversation tree.
+     * Used for custom user responses that aren't from the predefined options.
+     * @param data The data for the request.
+     * @param data.treeId
+     * @param data.parentId
+     * @param data.content
+     * @param data.role
+     * @returns Message Successful Response
+     * @throws ApiError
+     */
+    public static createMessage(data: CreateMessageData): CancelablePromise<CreateMessageResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/login/access-token',
+            url: '/api/v1/messages/create',
+            query: {
+                tree_id: data.treeId,
+                parent_id: data.parentId,
+                content: data.content,
+                role: data.role
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get All Cases
+     * Return all cases with the number of trees for each case.
+     * @returns CaseWithTreeCount Successful Response
+     * @throws ApiError
+     */
+    public static getAllCases(): CancelablePromise<GetAllCasesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cases'
+        });
+    }
+    
+    /**
+     * Create Case
+     * Create a new case with the provided information.
+     * Returns the created case with scenario count initialized to 0.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns CaseWithTreeCount Successful Response
+     * @throws ApiError
+     */
+    public static createCase(data: CreateCaseData): CancelablePromise<CreateCaseResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/cases',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Case With Simulations
+     * Get one case by ID, including its background and all simulations.
+     * Returns data matching the CaseData interface for the frontend.
+     * @param data The data for the request.
+     * @param data.caseId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getCaseWithSimulations(data: GetCaseWithSimulationsData): CancelablePromise<GetCaseWithSimulationsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cases/{case_id}',
+            path: {
+                case_id: data.caseId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Case
+     * Update a case's background information.
+     * Updates the context field which is stored as JSON.
+     * Also regenerates the summary based on the updated context.
+     * @param data The data for the request.
+     * @param data.caseId
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static updateCase(data: UpdateCaseData): CancelablePromise<UpdateCaseResponse> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/v1/cases/{case_id}',
+            path: {
+                case_id: data.caseId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Context History
+     * Get the current context history for the legal case.
+     * For now, returns a pregenerated string.
+     * @returns ContextResponse Successful Response
+     * @throws ApiError
+     */
+    public static getContextHistory1(): CancelablePromise<GetContextHistory1Response> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/context'
+        });
+    }
+    
+    /**
+     * Upload Audio
+     * Upload audio file containing user's voice question.
+     * Returns the transcribed text from the audio.
+     * @param data The data for the request.
+     * @param data.formData
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static uploadAudio(data: UploadAudioData): CancelablePromise<UploadAudioResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/upload-audio',
+            formData: data.formData,
+            mediaType: 'multipart/form-data',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Process With Model
+     * Process a question using one of the available AI models.
+     * Can optionally include context history.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns AudioResponse Successful Response
+     * @throws ApiError
+     */
+    public static processWithModel(data: ProcessWithModelData): CancelablePromise<ProcessWithModelResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/process-with-model',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Available Models
+     * Get list of available AI models.
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getAvailableModels(): CancelablePromise<GetAvailableModelsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/models'
+        });
+    }
+    
+    /**
+     * Generate Audio Response
+     * Generate audio response from text using the audio generation model.
+     * @param data The data for the request.
+     * @param data.formData
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static generateAudioResponse(data: GenerateAudioResponseData): CancelablePromise<GenerateAudioResponseResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/generate-audio-response',
             formData: data.formData,
             mediaType: 'application/x-www-form-urlencoded',
             errors: {
                 422: 'Validation Error'
             }
-        });
-    }
-    
-    /**
-     * Test Token
-     * Test access token
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static testToken(): CancelablePromise<LoginTestTokenResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/login/test-token'
-        });
-    }
-    
-    /**
-     * Recover Password
-     * Password Recovery
-     * @param data The data for the request.
-     * @param data.email
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static recoverPassword(data: LoginRecoverPasswordData): CancelablePromise<LoginRecoverPasswordResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/password-recovery/{email}',
-            path: {
-                email: data.email
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Reset Password
-     * Reset password
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static resetPassword(data: LoginResetPasswordData): CancelablePromise<LoginResetPasswordResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/reset-password/',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Recover Password Html Content
-     * HTML Content for Password Recovery
-     * @param data The data for the request.
-     * @param data.email
-     * @returns string Successful Response
-     * @throws ApiError
-     */
-    public static recoverPasswordHtmlContent(data: LoginRecoverPasswordHtmlContentData): CancelablePromise<LoginRecoverPasswordHtmlContentResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/password-recovery-html-content/{email}',
-            path: {
-                email: data.email
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
-export class PrivateService {
-    /**
-     * Create User
-     * Create a new user.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static createUser(data: PrivateCreateUserData): CancelablePromise<PrivateCreateUserResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/private/users/',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
-export class UsersService {
-    /**
-     * Read Users
-     * Retrieve users.
-     * @param data The data for the request.
-     * @param data.skip
-     * @param data.limit
-     * @returns UsersPublic Successful Response
-     * @throws ApiError
-     */
-    public static readUsers(data: UsersReadUsersData = {}): CancelablePromise<UsersReadUsersResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/users/',
-            query: {
-                skip: data.skip,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Create User
-     * Create new user.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static createUser(data: UsersCreateUserData): CancelablePromise<UsersCreateUserResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/users/',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Read User Me
-     * Get current user.
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static readUserMe(): CancelablePromise<UsersReadUserMeResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/users/me'
-        });
-    }
-    
-    /**
-     * Delete User Me
-     * Delete own user.
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static deleteUserMe(): CancelablePromise<UsersDeleteUserMeResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/users/me'
-        });
-    }
-    
-    /**
-     * Update User Me
-     * Update own user.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static updateUserMe(data: UsersUpdateUserMeData): CancelablePromise<UsersUpdateUserMeResponse> {
-        return __request(OpenAPI, {
-            method: 'PATCH',
-            url: '/api/v1/users/me',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Update Password Me
-     * Update own password.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static updatePasswordMe(data: UsersUpdatePasswordMeData): CancelablePromise<UsersUpdatePasswordMeResponse> {
-        return __request(OpenAPI, {
-            method: 'PATCH',
-            url: '/api/v1/users/me/password',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Register User
-     * Create new user without the need to be logged in.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static registerUser(data: UsersRegisterUserData): CancelablePromise<UsersRegisterUserResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/users/signup',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Read User By Id
-     * Get a specific user by id.
-     * @param data The data for the request.
-     * @param data.userId
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static readUserById(data: UsersReadUserByIdData): CancelablePromise<UsersReadUserByIdResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/users/{user_id}',
-            path: {
-                user_id: data.userId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Update User
-     * Update a user.
-     * @param data The data for the request.
-     * @param data.userId
-     * @param data.requestBody
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static updateUser(data: UsersUpdateUserData): CancelablePromise<UsersUpdateUserResponse> {
-        return __request(OpenAPI, {
-            method: 'PATCH',
-            url: '/api/v1/users/{user_id}',
-            path: {
-                user_id: data.userId
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Delete User
-     * Delete a user.
-     * @param data The data for the request.
-     * @param data.userId
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static deleteUser(data: UsersDeleteUserData): CancelablePromise<UsersDeleteUserResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/users/{user_id}',
-            path: {
-                user_id: data.userId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
-export class UtilsService {
-    /**
-     * Test Email
-     * Test emails.
-     * @param data The data for the request.
-     * @param data.emailTo
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static testEmail(data: UtilsTestEmailData): CancelablePromise<UtilsTestEmailResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/utils/test-email/',
-            query: {
-                email_to: data.emailTo
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Health Check
-     * @returns boolean Successful Response
-     * @throws ApiError
-     */
-    public static healthCheck(): CancelablePromise<UtilsHealthCheckResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/utils/health-check/'
         });
     }
 }
