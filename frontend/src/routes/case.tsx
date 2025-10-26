@@ -327,15 +327,44 @@ useEffect(() => {
 
   const handleCancelBackground = () => { setIsEditBackgroundOpen(false) }
 
-  const handleGenerateSimulation = () => {
-    if (simulationBrief.trim()) {
-      // TODO: Generate simulation via backend
-      // For now, create mock simulation and navigate
-      // Navigate to root node of the new simulation
-      const newSimulationId = `sim-${Date.now()}`
-      const rootNodeId = `${newSimulationId}-root`
+  const handleGenerateSimulation = async () => {
+    if (!simulationBrief.trim() || !caseData) return
+
+    try {
+      // Call backend to create simulation and generate initial tree
+      const response = await fetch(`http://localhost:8000/api/v1/continue-conversation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          case_id: Number(id),
+          tree_id: null, // null indicates new simulation
+          simulation_goal: simulationBrief,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to generate simulation")
+      }
+
+      const data = await response.json()
+      const newSimulationId = data.tree_id
+
       setIsNewSimulationOpen(false)
-      navigate({ to: "/scenario", search: { id: rootNodeId } })
+      setSimulationBrief("")
+
+      // Navigate to the new simulation
+      navigate({
+        to: "/scenario",
+        search: {
+          caseId: Number(id),
+          simulationId: newSimulationId,
+        },
+      })
+    } catch (error) {
+      console.error("Error generating simulation:", error)
+      // TODO: Show error toast
     }
   }
 
@@ -532,7 +561,13 @@ useEffect(() => {
                 _hover={{ shadow: "md" }}
                 transition="all 0.2s"
                 onClick={() =>
-                  navigate({ to: "/scenario", search: { id: `${simulation.id}-root` } })
+                  navigate({
+                    to: "/scenario",
+                    search: {
+                      caseId: Number(id),
+                      simulationId: Number(simulation.id),
+                    },
+                  })
                 }
               >
                 <Card.Body>
