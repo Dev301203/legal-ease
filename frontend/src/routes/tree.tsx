@@ -13,15 +13,56 @@ import {
   type OnEdgesChange,
   type OnNodeDrag,
   type DefaultEdgeOptions,
+  type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios';
+import dagre from 'dagre';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 
 const fitViewOptions: FitViewOptions = { padding: 0.2 };
-const defaultEdgeOptions: DefaultEdgeOptions = { animated: true };
+const defaultEdgeOptions: DefaultEdgeOptions = {
+  animated: false,
+  style: { stroke: '#C0C0C0', strokeWidth: 1 } // Light-medium grey, continuous
+};
 
 const onNodeDrag: OnNodeDrag = (_, node) => {
   console.log('drag event', node.data);
+};
+
+// Dagre layout configuration
+const dagreGraph = new dagre.graphlib.Graph();
+dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+const nodeWidth = 250;
+const nodeHeight = 80;
+
+const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
+  // Increased spacing: ranksep controls vertical spacing between levels, nodesep controls horizontal spacing between siblings
+  dagreGraph.setGraph({ rankdir: 'TB', ranksep: 150, nodesep: 100 });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
 };
 
 interface MessageNode {
@@ -32,6 +73,8 @@ interface MessageNode {
 }
 
 function Flow({ simulationId }: { simulationId: number }) {
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as { caseId?: number; simulationId?: number; messageId?: number };
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
@@ -48,6 +91,24 @@ function Flow({ simulationId }: { simulationId: number }) {
   const onConnect: OnConnect = useCallback(
     (connection) => setEdges((eds) => addEdge(connection, eds)),
     []
+  );
+
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_, node) => {
+      const messageIdNum = Number(node.id);
+      // Update URL with messageId parameter
+      if (search.caseId) {
+        navigate({
+          to: '/scenario',
+          search: {
+            caseId: search.caseId,
+            simulationId: simulationId,
+            messageId: messageIdNum,
+          },
+        });
+      }
+    },
+    [navigate, search.caseId, simulationId]
   );
 
   // Fetch bookmark paths
@@ -88,52 +149,79 @@ function Flow({ simulationId }: { simulationId: number }) {
 
         const newNodes: Node[] = [];
         const newEdges: Edge[] = [];
-        let yCounter = 0;
 
-        function traverseTree(node: MessageNode, x: number, parentId?: string) {
+        function traverseTree(node: MessageNode, parentId?: string) {
           const nodeId = node.id.toString();
-          const isHighlighted = bookmarkedIds.has(nodeId);
-          const isHighlightedEdge = highlightedIds.has(nodeId);
+          const isBookmarked = bookmarkedIds.has(nodeId);
+          const isInBookmarkPath = highlightedIds.has(nodeId);
+          const isRoot = !parentId;
 
-          const bgColor =
-            node.role === 'assistant' ? '#F4E1B9' :
-            node.role === 'user' ? '#d5ac62' :
-            node.role === 'system' ? '#F7F0D6' :
-            '#e0e0e0';
+          // Role-based border colors (salmon/slate pattern from scenario.tsx)
+          const borderColor =
+            node.role === 'B' ? '#9FA0C3' :      // slate.500
+            node.role === 'A' ? '#E07A5F' : // salmon.500
+            node.role === 'system' ? '#9FA0C3' :    // slate.500
+            '#888';
 
-          const y = yCounter * 50;
-          yCounter++;
+          // Bold borders for: root nodes, bookmarked nodes, or nodes in bookmark paths
+          const borderWidth = (isRoot || isBookmarked || isInBookmarkPath) ? '4px' : '2px';
+
+          // Fill root and bookmarked nodes with their border color
+          const backgroundColor = (isRoot || isBookmarked) ? borderColor : 'white';
+
+          // White bold text for root and bookmarked nodes
+          const textColor = (isRoot || isBookmarked) ? 'white' : '#3A3A3A';
+          const fontWeight = (isRoot || isBookmarked) ? 'bold' : 'normal';
 
           newNodes.push({
             id: nodeId,
             data: { label: `${node.role}: ${node.content}` },
-            position: { x, y },
+            position: { x: 0, y: 0 }, // Temporary position, will be set by dagre
             style: {
-              background: bgColor,
-              color: 'black',
+              background: backgroundColor,
+              color: textColor,
+              fontWeight: fontWeight,
               padding: 10,
               borderRadius: 5,
-              border: isHighlighted ? '2px solid gold' : '1px solid #ccc',
-              boxShadow: isHighlighted ? '0 0 10px 2px rgba(255, 215, 0, 0.6)' : undefined,
+              border: `${borderWidth} solid ${borderColor}`,
+              cursor: 'pointer',
             },
           });
 
           if (parentId) {
-            newEdges.push({
-              id: `${parentId}-${nodeId}`,
-              source: parentId,
-              target: nodeId,
-              style: isHighlightedEdge ? { stroke: 'gold', strokeWidth: 3 } : { stroke: '#888', strokeWidth: 1 },
-            });
+            // Emphasized edges for bookmark paths: darker, animated, dotted
+            if (isInBookmarkPath) {
+              newEdges.push({
+                id: `${parentId}-${nodeId}`,
+                source: parentId,
+                target: nodeId,
+                animated: true,
+                style: {
+                  stroke: '#333',
+                  strokeWidth: 3,
+                  strokeDasharray: '5,5',
+                },
+              });
+            } else {
+              // Default edges are handled by defaultEdgeOptions
+              newEdges.push({
+                id: `${parentId}-${nodeId}`,
+                source: parentId,
+                target: nodeId,
+              });
+            }
           }
 
-          node.children.forEach(child => traverseTree(child, x + 200, nodeId));
+          node.children.forEach(child => traverseTree(child, nodeId));
         }
 
-        treeData.forEach(rootNode => traverseTree(rootNode, 0));
+        treeData.forEach(rootNode => traverseTree(rootNode));
 
-        setNodes(newNodes);
-        setEdges(newEdges);
+        // Apply dagre layout
+        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(newNodes, newEdges);
+
+        setNodes(layoutedNodes);
+        setEdges(layoutedEdges);
       } catch (err) {
         console.error('Failed to fetch messages', err);
       }
@@ -151,9 +239,12 @@ function Flow({ simulationId }: { simulationId: number }) {
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
       onNodeDrag={onNodeDrag}
+      onNodeClick={onNodeClick}
       fitView
       fitViewOptions={fitViewOptions}
       defaultEdgeOptions={defaultEdgeOptions}
+      minZoom={0.1}
+      maxZoom={2}
     />
   );
 }

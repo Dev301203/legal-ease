@@ -14,6 +14,7 @@ import {
   VStack,
   Spinner,
 } from "@chakra-ui/react"
+import { FiPlus } from "react-icons/fi"
 
 interface CaseSearchParams {
   id?: string
@@ -260,8 +261,8 @@ useEffect(() => {
         id: String(sim.id),
         headline: sim.headline,
         brief: sim.brief,
-        created_at: new Date(sim.createdAt),
-        node_count: sim.nodeCount,
+        created_at: new Date(sim.created_at || sim.createdAt),
+        node_count: sim.node_count || sim.nodeCount,
       }))
 
       // ✅ Parse and normalize background
@@ -483,14 +484,23 @@ useEffect(() => {
             <Collapsible.Root>
               <Card.Body>
                 <Collapsible.Trigger paddingY={2} flex={1} width="100%">
-                  <HStack justifyContent="space-between" width="100%">
-                    <Heading fontSize="lg" color="#3A3A3A">
-                      Background
-                    </Heading>
-                    <Text fontSize="sm" color="#999">
-                      ▼
-                    </Text>
-                  </HStack>
+                  <Collapsible.Context>
+                    {(api) => (
+                      <HStack justifyContent="space-between" width="100%">
+                        <Heading fontSize="lg" color="#3A3A3A">
+                          Background
+                        </Heading>
+                        <Box
+                          fontSize="sm"
+                          color="#999"
+                          transform={api.open ? "rotate(180deg)" : "rotate(0deg)"}
+                          transition="transform 0.2s"
+                        >
+                          ▼
+                        </Box>
+                      </HStack>
+                    )}
+                  </Collapsible.Context>
                 </Collapsible.Trigger>
 
                 <Collapsible.Content>
@@ -594,12 +604,19 @@ useEffect(() => {
 
         {/* Simulations */}
         <VStack alignItems="flex-start" gap={6}>
-          <HStack justifyContent="space-between" width="100%">
+          <HStack justifyContent="flex-start" gap={4} width="100%">
             <Heading fontSize="2xl" color="#3A3A3A">
               Simulations
             </Heading>
-            <Button size="sm" variant="outline" onClick={handleNewSimulation}>
-              New Simulation
+            <Button
+              size="sm"
+              variant="outline"
+              color="darkGrey.text"
+              borderColor="darkGrey.text"
+              _hover={{ bg: "gray.100" }}
+              onClick={handleNewSimulation}
+            >
+              <FiPlus />
             </Button>
           </HStack>
 
@@ -637,7 +654,6 @@ useEffect(() => {
                           year: "numeric",
                         })}
                       </Text>
-                      <Text>{simulation.node_count} nodes</Text>
                     </HStack>
                   </VStack>
                 </Card.Body>

@@ -27,9 +27,9 @@ export const Route = createRootRoute({
     <>
       <Header />
       <Outlet />
-      <Suspense>
+      {/* <Suspense>
         <TanStackDevtools />
-      </Suspense>
+      </Suspense> */}
     </>
   ),
   notFoundComponent: () => <NotFound />,

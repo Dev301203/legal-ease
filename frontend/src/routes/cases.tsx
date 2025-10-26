@@ -5,6 +5,7 @@ import {
   Card,
   Container,
   Heading,
+  Icon,
   Input,
   SimpleGrid,
   Text,
@@ -12,6 +13,7 @@ import {
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { useEffect, useState } from "react"
+import { FiX } from "react-icons/fi"
 
 
 export const Route = createFileRoute("/cases")({
@@ -24,28 +26,6 @@ interface Case {
   last_modified: Date
   scenario_count: number
 }
-
-// // Mock data for now
-// const mockCases: Case[] = [
-//   {
-//     id: "1",
-//     title: "Smith v. Johnson Contract Dispute",
-//     lastModified: new Date("2025-10-20"),
-//     scenarioCount: 3,
-//   },
-//   {
-//     id: "2",
-//     title: "Estate Planning - Anderson Family",
-//     lastModified: new Date("2025-10-18"),
-//     scenarioCount: 5,
-//   },
-//   {
-//     id: "3",
-//     title: "Corporate Merger - TechCorp Inc.",
-//     lastModified: new Date("2025-10-15"),
-//     scenarioCount: 2,
-//   },
-// ]
 
 function CasesPage() {
   const navigate = useNavigate()
@@ -84,24 +64,24 @@ function CasesPage() {
             context: null,
           }),
         })
-        
+
         if (!response.ok) {
           throw new Error("Failed to create case")
         }
-        
+
         const newCase = await response.json()
-        
+
         // Add to local state
         setCases([...cases, {
           id: String(newCase.id),
           name: newCase.name,
           last_modified: new Date(newCase.last_modified),
-          scenario_count: newCase.scenario_count
+          scenario_count: newCase.scenario_count,
         }])
-        
+
         setIsNewCaseModalOpen(false)
         setNewCaseTitle("")
-        
+
         // Navigate to the new case
         navigate({ to: "/case", search: { id: String(newCase.id) } })
       } catch (error) {
@@ -166,8 +146,8 @@ function CasesPage() {
                     <Text fontSize="med" color="#666">
                       {caseItem.scenario_count}{" "}
                       {caseItem.scenario_count === 1
-                        ? "scenario tree"
-                        : "scenario trees"}
+                        ? "simulation"
+                        : "simulations"}
                     </Text>
                   </VStack>
                 </VStack>
@@ -180,10 +160,10 @@ function CasesPage() {
             onClick={handleNewCase}
             _hover={{ transform: "scale(1.02)", shadow: "lg" }}
             transition="all 0.2s"
-            bg="white"
+            bg="transparent"
             borderWidth="2px"
             borderStyle="dashed"
-            borderColor="#3A3A3A"
+            borderColor="#D3D3D3"
           >
             <Card.Body>
               <VStack
@@ -192,10 +172,7 @@ function CasesPage() {
                 alignItems="center"
               >
                 <Text fontSize="6xl" color="#3A3A3A">
-                  +
-                </Text>
-                <Text fontSize="lg" fontWeight="medium" color="#3A3A3A">
-                  New Case
+                 +
                 </Text>
               </VStack>
             </Card.Body>
@@ -213,6 +190,18 @@ function CasesPage() {
           <Dialog.Content>
             <Dialog.Header>
               <Dialog.Title>Create New Case</Dialog.Title>
+              <Dialog.CloseTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelNewCase}
+                  position="absolute"
+                  top={4}
+                  right={4}
+                >
+                  <Icon as={FiX} />
+                </Button>
+              </Dialog.CloseTrigger>
             </Dialog.Header>
             <Dialog.Body>
               <VStack gap={4} alignItems="flex-start" width="100%">
@@ -234,11 +223,6 @@ function CasesPage() {
               </VStack>
             </Dialog.Body>
             <Dialog.Footer>
-              <Dialog.CloseTrigger asChild>
-                <Button variant="outline" onClick={handleCancelNewCase}>
-                  Cancel
-                </Button>
-              </Dialog.CloseTrigger>
               <Button
                 bg="#3A3A3A"
                 color="#F4ECD8"

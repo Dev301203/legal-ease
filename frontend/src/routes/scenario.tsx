@@ -20,7 +20,7 @@ import {
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { toaster } from "@/components/ui/toaster"
-import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw, FiTrash2, FiRotateCw } from "react-icons/fi"
+import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw, FiTrash2, FiRotateCw, FiSquare } from "react-icons/fi"
 import type { DialogueNode, ResponseOption } from "@/types/scenario"
 import {
   loadSimulationTree,
@@ -1008,7 +1008,27 @@ const handleStopRecording = async () => {
                                 width="100%" // make textarea full width
                               />
 
-                              <HStack justify="space-between" width="100%">
+                              <HStack justify="flex-end" gap={3} width="100%">
+                                <Button
+                                  size="sm"
+                                  variant={isRecording ? "solid" : "outline"}
+                                  bg={isRecording ? "salmon.500" : "transparent"}
+                                  color={isRecording ? "white" : "darkGrey.text"}
+                                  borderColor={isRecording ? "salmon.500" : "darkGrey.text"}
+                                  _hover={{
+                                    bg: isRecording ? "salmon.600" : "gray.100"
+                                  }}
+                                  onClick={() => {
+                                    if (isRecording) handleStopRecording()
+                                    else handleStartRecording()
+                                  }}
+                                  loading={isRecording}
+                                  loadingText="Dictating"
+                                >
+                                  <Icon as={isRecording ? FiSquare : FiMic} />
+                                  {isRecording ? "Stop" : "Dictate"}
+                                </Button>
+
                                 <Button
                                   size="sm"
                                   bg="slate.500"
@@ -1018,17 +1038,6 @@ const handleStopRecording = async () => {
                                   disabled={!customResponse.trim()}
                                 >
                                   Submit
-                                </Button>
-
-                                <Button
-                                  size="sm"
-                                  colorScheme={isRecording ? "red" : "gray"}
-                                  onClick={() => {
-                                    if (isRecording) handleStopRecording()
-                                    else handleStartRecording()
-                                  }}
-                                >
-                                  {isRecording ? "🎤 Stop Recording" : "🎤 Record"}
                                 </Button>
                               </HStack>
                             </VStack>
