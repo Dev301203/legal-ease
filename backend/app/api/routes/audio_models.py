@@ -9,7 +9,7 @@ import os
 from openai import OpenAI
 from app.core.config import settings
 from app.core.db import engine
-from app.crud import get_case_context, get_messages_by_tree
+from app.crud import get_case_context, get_messages_by_tree, get_selected_messages_between
 from app.schemas import AudioResponse, ContextResponse, messages_to_conversation
 from sqlmodel import Session
 from fastapi import APIRouter, Depends
@@ -162,14 +162,15 @@ async def summarize_background(data: str, desired_lines: int):
     return {"message": result}
 
 @router.get("/get-conversation-audio/{tree_id}")
-async def get_conversation_audio(tree_id: int, session: Session = Depends(get_session)):
+async def get_conversation_audio(start_message_id: int, end_message_id: int, session: Session = Depends(get_session)):
     """
     Takes a tree_id, for which it gets conversation history messages from the database in order.
     Returns the generated audio file as wav.
     """
 
     try:
-        messages = get_messages_by_tree(session, tree_id)
+        # messages = get_messages_by_tree(session, tree_id)
+        messages = get_selected_messages_between(start_message_id, end_message_id)
 
         tts_string = ""
 
@@ -233,8 +234,8 @@ async def get_conversation_audio(tree_id: int, session: Session = Depends(get_se
         )
 
         audio_b64 = resp.choices[0].message.audio.data
-        open(str(tree_id) + ".wav", "wb").write(base64.b64decode(audio_b64))
-        return FileResponse(str(tree_id) + ".wav", media_type="audio/wav")
+        open(str(end_message_id) + ".wav", "wb").write(base64.b64decode(audio_b64))
+        return FileResponse(str(end_message_id) + ".wav", media_type="audio/wav")
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing conversation: {str(e)}")
