@@ -22,9 +22,9 @@ def get_case_context(session: Session, case_id: int) -> str | None:
 
 
 def get_messages_by_tree(session: Session, tree_id: int) -> list[Message]:
-    """Retrieve messages for a tree_id in hierarchical order (DFS), only selected ones."""
+    """Retrieve messages for a tree_id in hierarchical order (DFS)."""
     statement = select(Message).where(
-        (Message.simulation_id == tree_id) & (Message.selected == True)
+        (Message.simulation_id == tree_id)
     )
     messages = session.exec(statement).all()
 

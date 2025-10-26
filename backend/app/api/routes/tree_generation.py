@@ -7,8 +7,7 @@ import os
 from openai import OpenAI
 from app.core.config import settings
 from app.core.db import engine
-from app.crud import get_case_context, get_messages_by_tree
-from app.schemas import TreeResponse, ScenariosTreeResponse
+from app.schemas import ScenariosTreeResponse
 from app.models import Simulation, Message
 from sqlmodel import Session, select
 from typing import Dict, Any
@@ -59,7 +58,7 @@ def get_boson_client():
         )
     return OpenAI(api_key=settings.BOSON_API_KEY, base_url="https://hackathon.boson.ai/v1")
 
-def create_tree(case_background: str, previous_statements: str, simulation_goal: str, last_message: str = None) -> Dict[str, Any]:
+def create_tree(case_background: str, previous_statements: str, simulation_goal: str, last_message: str = None, refresh: bool = False) -> Dict[str, Any]:
     """
     Create a tree of messages based on the case background and previous statements.
     Uses the Qwen3-32B-thinking-Hackathon model to generate a structured 3-level dialogue tree.
@@ -263,30 +262,24 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Error saving tree to database: {str(e)}")
 
-def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, Any], existing_tree_id: int = None, last_message_id: int = None) -> int:
+def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, Any], existing_tree_id: int = None, last_message_id: int = None) -> bool:
     """
     Save messages from tree generation to database.
-    If no existing_tree_id, creates a new tree with level1 as root.
+    If no last_message_id, creates a new tree with level1 as root.
     If existing_tree_id provided, appends new messages to the existing tree as children of last_message_id.
-    Returns the tree_id of the tree containing the messages.
+    Returns True if successful, False otherwise.
     """
     try:
         # Get the scenarios_tree from the response
         scenarios_tree = tree_data.get("scenarios_tree", {})
         
-        if existing_tree_id is None:
-            # No existing tree - create new tree with level1 as root
-            tree = Simulation(case_id=case_id)
-            session.add(tree)
-            session.commit()
-            session.refresh(tree)
-            tree_id = tree.id
-            
+        if last_message_id is None:
+            # No last_message_id - create new tree with level1 as root
             # Save Level 1 message as root (parent_id=None)
             level1_msg = Message(
                 content=scenarios_tree.get("line", ""),
                 role=scenarios_tree.get("speaker", "A"),
-                tree_id=tree_id,
+                tree_id=existing_tree_id,
                 parent_id=None,  # Root message
                 selected=True
             )
@@ -302,7 +295,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                 level2_msg = Message(
                     content=level2_response.get("line", ""),
                     role=level2_response.get("speaker", "B"),
-                    tree_id=tree_id,
+                    tree_id=existing_tree_id,
                     parent_id=level1_msg.id,
                     selected=False  # Not selected by default
                 )
@@ -321,20 +314,14 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                         level3_msg = Message(
                             content=level3_response.get("line", ""),
                             role=level3_response.get("speaker", "A"),
-                            tree_id=tree_id,
+                            tree_id=existing_tree_id,
                             parent_id=level2_msg.id,
                             selected=False  # Not selected by default
                         )
                         session.add(level3_msg)
             
         else:
-            # Existing tree - append new messages as children of last_message_id
-            tree_id = existing_tree_id
-            
-            # Get the last message to use as parent
-            if last_message_id is None:
-                raise HTTPException(status_code=400, detail="last_message_id is required when continuing existing tree")
-            
+            # Existing history - append new messages as children of last_message_id
             last_message = session.get(Message, last_message_id)
             if not last_message:
                 raise HTTPException(status_code=404, detail=f"Message with id {last_message_id} not found")
@@ -343,7 +330,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             level1_msg = Message(
                 content=scenarios_tree.get("line", ""),
                 role=scenarios_tree.get("speaker", "A"),
-                tree_id=tree_id,
+                tree_id=existing_tree_id,
                 parent_id=last_message_id,
                 selected=False  # Not selected by default
             )
@@ -359,7 +346,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                 level2_msg = Message(
                     content=level2_response.get("line", ""),
                     role=level2_response.get("speaker", "B"),
-                    tree_id=tree_id,
+                    tree_id=existing_tree_id,
                     parent_id=level1_msg.id,
                     selected=False  # Not selected by default
                 )
@@ -378,14 +365,14 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                         level3_msg = Message(
                             content=level3_response.get("line", ""),
                             role=level3_response.get("speaker", "A"),
-                            tree_id=tree_id,
+                            tree_id=existing_tree_id,
                             parent_id=level2_msg.id,
                             selected=False  # Not selected by default
                         )
                         session.add(level3_msg)
         
         session.commit()
-        return tree_id
+        return True
         
     except Exception as e:
         session.rollback()

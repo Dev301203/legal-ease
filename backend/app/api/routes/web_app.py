@@ -14,19 +14,14 @@ from app.models import Message, Case, Simulation
 from app.schemas import TreeResponse, SimulationCreate, SimulationResponse, CaseWithTreeCount
 from app.api.routes.tree_generation import create_tree, save_messages_to_tree
 
-from app.models import Message, Case, Simulation
-from typing import List, Optional
-
-from app.schemas import CaseWithTreeCount
-from sqlmodel import select, func
-
 router = APIRouter()
 
 
 class ContinueConversationRequest(BaseModel):
     case_id: int
-    tree_id: Optional[int] = None
-    simulation_goal: str = "Reach a favorable settlement"
+    message_id: Optional[int] = None,
+    tree_id: Optional[int] = None,
+    refresh: bool = False
 
 
 def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
@@ -88,108 +83,44 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
     """
     case_id = request.case_id
     tree_id = request.tree_id
-    simulation_goal = request.simulation_goal
+    message_id = request.message_id
+    refresh = request.refresh
     try:
         # Get the case context
         case_background = get_case_context(session, case_id)
         if not case_background:
             raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found")
 
-        # If no tree_id provided, assume no prior history and create new tree
-        if tree_id is None:
-            # No prior history - generate new tree
-            tree_data = create_tree(case_background, "", simulation_goal, "")
-
-            # Save the messages to the database (creates new tree)
-            saved_tree_id = save_messages_to_tree(
-                session,
-                case_id,
-                tree_data,
-                existing_tree_id=None,
-                last_message_id=None
-            )
-
-            # Return the generated tree data
-            return {
-                "tree_id": saved_tree_id,
-                "case_id": case_id,
-                "simulation_goal": simulation_goal,
-                **tree_data
-            }
-
         # Tree_id provided - continue existing conversation
-        # Get the ID of the last selected message
-        last_message_id = get_last_message_id_from_tree(session, tree_id)
-
         # Check if the last selected message is a leaf node
-        if is_leaf_node(session, last_message_id):
-            # Leaf node - generate new messages and save them
-            messages_history = get_messages_by_tree(session, tree_id)
-            last_message = session.get(Message, last_message_id)
-            last_message_content = last_message.content if last_message else ""
+        if refresh:
+            # Delete the original subtree
+            delete_messages_including_children(session, message_id)
 
-            # Generate a tree of messages based on the case background and simulation goal
-            tree_data = create_tree(case_background, messages_history, simulation_goal, last_message_content)
+        # Leaf node - generate new messages and save them
+        messages_history = get_messages_by_tree(session, tree_id) or ""
+        last_message = session.get(Message, message_id)
+        last_message_content = last_message.content if last_message else ""
 
-            # Save the messages to the database
-            saved_tree_id = save_messages_to_tree(
-                session,
-                case_id,
-                tree_data,
-                existing_tree_id=tree_id,
-                last_message_id=last_message_id
-            )
+        simulation = session.get(Simulation, tree_id)
+        simulation_goal = simulation.brief
 
-            # Return the generated tree data
-            return {
-                "tree_id": saved_tree_id,
-                "case_id": case_id,
-                "simulation_goal": simulation_goal,
-                **tree_data
-            }
-        else:
-            # Not a leaf node - return existing children
-            children = get_message_children_for_tree(session, last_message_id)
+        # Generate a tree of messages based on the case background and simulation goal
+        tree_data = create_tree(case_background, messages_history, simulation_goal, last_message_content, refresh)
 
-            # Convert children to the expected format
-            children_responses = []
-            for child in children:
-                # Get grandchildren for each child
-                grandchildren = get_message_children_for_tree(session, child.id)
-                grandchildren_responses = []
-                for grandchild in grandchildren:
-                    grandchildren_responses.append({
-                        "speaker": grandchild.role,
-                        "line": grandchild.content,
-                        "level": 3,
-                        "reflects_personality": "Generated response",
-                        "responses": []
-                    })
+        # Save the messages to the database
+        save_messages_to_tree(
+            session,
+            case_id,
+            tree_data,
+            existing_tree_id=tree_id,
+            last_message_id=message_id
+        )
 
-                children_responses.append({
-                    "speaker": child.role,
-                    "line": child.content,
-                    "level": 2,
-                    "reflects_personality": "Generated response",
-                    "responses": grandchildren_responses
-                })
-
-            # Create a mock scenarios_tree structure
-            last_message = session.get(Message, last_message_id)
-            scenarios_tree = {
-                "speaker": last_message.role if last_message else "Player (My Lawyer)",
-                "line": last_message.content if last_message else "",
-                "level": 1,
-                "reflects_personality": "Current message",
-                "responses": children_responses
-            }
-
-            return {
-                "tree_id": tree_id,
-                "case_id": case_id,
-                "simulation_goal": simulation_goal,
-                "scenarios_tree": scenarios_tree
-            }
+        # Return the generated tree data
+        return {
+            **tree_data
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error continuing conversation: {str(e)}")
