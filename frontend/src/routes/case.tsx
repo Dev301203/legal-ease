@@ -65,6 +65,7 @@ function CasePage() {
     key_issues: "",
     general_notes: "",
   })
+  const [isBackgroundEdited, setIsBackgroundEdited] = useState(false)
 
   const [isNewSimulationOpen, setIsNewSimulationOpen] = useState(false)
   const [simulationTitle, setSimulationTitle] = useState("")
@@ -81,11 +82,16 @@ const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
 const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
 
+  // Track the case ID to detect when we've loaded a different case
+  const [loadedCaseId, setLoadedCaseId] = useState<string | null>(null);
+
   useEffect(() => {
-  if (caseData) {
-    setEditedBackground(caseData.background);
-  }
-}, [caseData]);
+    if (caseData && caseData.id !== loadedCaseId) {
+      setEditedBackground(caseData.background);
+      setIsBackgroundEdited(false);
+      setLoadedCaseId(caseData.id);
+    }
+  }, [caseData, loadedCaseId]);
 
 const handleStartRecording = async () => {
   try {
@@ -155,6 +161,7 @@ const handleStopRecording = async () => {
               }
             : prev
         );
+        setIsBackgroundEdited(true);
 
       } catch (err) {
         console.error("Error sending audio to backend:", err);
@@ -291,10 +298,11 @@ useEffect(() => {
   const handleSaveCase = async () => {
     if (!caseData) return
 
-    const updatedCase = {
-    ...caseData,
-    background: { ...caseData.background, ...editedBackground },
-  };
+    // Merge caseData.background with editedBackground for general_notes
+    const updatedBackground = {
+      ...caseData.background,
+      general_notes: editedBackground.general_notes,
+    };
 
     setSaving(true)
     try {
@@ -302,7 +310,7 @@ useEffect(() => {
       const response = await fetch(`http://localhost:8000/api/v1/cases/${caseData.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedCase.background),
+      body: JSON.stringify(updatedBackground),
     });
 
       if (!response.ok) {
@@ -312,9 +320,15 @@ useEffect(() => {
       // Get the updated case data including the regenerated summary
       const data = await response.json()
 
-      // Update the summary with the regenerated value from the API
-      setCaseData({ ...caseData, summary: data.summary })
+      // Update both the summary and background to preserve the saved data
+      setCaseData({
+        ...caseData,
+        summary: data.summary,
+        background: updatedBackground
+      })
 
+      // Reset the edited flag after successful save
+      setIsBackgroundEdited(false)
 
       // Show success message or update UI
       console.log("Case saved successfully")
@@ -455,17 +469,11 @@ useEffect(() => {
             <Card.Body>
               <VStack alignItems="flex-start" gap={3}>
                 <Heading fontSize="lg" color="#3A3A3A">
-                  Summary
+                  Automatic Summary
                 </Heading>
-                <Textarea
-                  value={caseData.summary}
-                  readOnly
-                  fontSize="md"
-                  color="#666"
-                  lineHeight="1.6"
-                  minHeight="80px"
-                  bg="#f5f5f5"
-                />
+                <Text>
+                  {caseData.summary}
+                </Text>
               </VStack>
             </Card.Body>
           </Card.Root>
@@ -493,7 +501,10 @@ useEffect(() => {
                       </Text>
                       <Textarea
                         value={caseData.background.party_a}
-                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_a: e.target.value } })}
+                        onChange={(e) => {
+                          setCaseData({ ...caseData, background: { ...caseData.background, party_a: e.target.value } })
+                          setIsBackgroundEdited(true)
+                        }}
                         rows={2}
                       />
                     </Box>
@@ -504,7 +515,10 @@ useEffect(() => {
                       </Text>
                       <Textarea
                         value={caseData.background.party_b}
-                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_b: e.target.value } })}
+                        onChange={(e) => {
+                          setCaseData({ ...caseData, background: { ...caseData.background, party_b: e.target.value } })
+                          setIsBackgroundEdited(true)
+                        }}
                         rows={2}
                       />
                     </Box>
@@ -515,7 +529,10 @@ useEffect(() => {
                       </Text>
                       <Textarea
                         value={caseData.background.key_issues}
-                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, key_issues: e.target.value } })}
+                        onChange={(e) => {
+                          setCaseData({ ...caseData, background: { ...caseData.background, key_issues: e.target.value } })
+                          setIsBackgroundEdited(true)
+                        }}
                       />
                     </Box>
 
@@ -543,28 +560,31 @@ useEffect(() => {
 
                       <Textarea
                       value={editedBackground.general_notes || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setEditedBackground({
                           ...editedBackground,
                           general_notes: e.target.value,
                         })
-                      }
+                        setIsBackgroundEdited(true)
+                      }}
                       rows={4}
                     />
                     </Box>
 
-                    {/* Save Button */}
-                    <Box width="100%" display="flex" justifyContent="flex-end" mt={2}>
-                      <Button
-                        bg="#3A3A3A"
-                        color="#F4ECD8"
-                        _hover={{ bg: "#2A2A2A" }}
-                        onClick={handleSaveCase}
-                        disabled={saving || !caseData}
-                      >
-                        {saving ? "Saving..." : "Save"}
-                      </Button>
-                    </Box>
+                    {/* Save Button - only show if edited */}
+                    {isBackgroundEdited && (
+                      <Box width="100%" display="flex" justifyContent="flex-end" mt={2}>
+                        <Button
+                          bg="#3A3A3A"
+                          color="#F4ECD8"
+                          _hover={{ bg: "#2A2A2A" }}
+                          onClick={handleSaveCase}
+                          disabled={saving || !caseData}
+                        >
+                          {saving ? "Saving..." : "Save"}
+                        </Button>
+                      </Box>
+                    )}
                   </VStack>
                 </Collapsible.Content>
               </Card.Body>

@@ -56,8 +56,6 @@ function Flow({ simulationId }: { simulationId: number }) {
       try {
         const response = await axios.get<{ message_id: number }[]>(
           `http://localhost:8000/api/v1/bookmarks/${simulationId}`
-                      // `http://localhost:8000/api/v1/bookmarks/1`
-
         );
         const bookmarkIds = response.data.map(b => b.message_id.toString());
         const bookmarkIdsSet = new Set<string>(bookmarkIds);
@@ -66,9 +64,7 @@ function Flow({ simulationId }: { simulationId: number }) {
         const pathIds = new Set<string>();
         await Promise.all(bookmarkIds.map(async (id) => {
           const res = await axios.get<{ id: number }[]>(
-            // `http://localhost:8000/api/v1/trees/${simulationId}/messages/traversal?message_id=${id}`
-                          `http://localhost:8000/api/v1/trees/1/messages/traversal?message_id=${id}`
-
+            `http://localhost:8000/api/v1/trees/${simulationId}/messages/traversal?message_id=${id}`
           );
           res.data.forEach(m => pathIds.add(m.id.toString()));
         }));
@@ -86,9 +82,7 @@ function Flow({ simulationId }: { simulationId: number }) {
     async function fetchMessages() {
       try {
         const response = await axios.get<MessageNode[]>(
-          // `http://localhost:8000/api/v1/trees/${simulationId}/messages`
-                      `http://localhost:8000/api/v1/trees/1/messages`
-
+          `http://localhost:8000/api/v1/trees/${simulationId}/messages`
         );
         const treeData = response.data;
 

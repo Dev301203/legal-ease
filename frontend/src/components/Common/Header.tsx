@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from "@tanstack/react-router"
 import { Box, Container, HStack, Image } from "@chakra-ui/react"
 import { Breadcrumb } from "@chakra-ui/react"
+import { Fragment, useEffect, useState } from "react"
+import { getCaseWithSimulations, getSimulation } from "@/services/scenarioService"
 
 interface BreadcrumbItem {
   label: string
@@ -11,6 +13,54 @@ interface BreadcrumbItem {
 export default function Header() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [caseTitle, setCaseTitle] = useState<string>("")
+  const [simulationTitle, setSimulationTitle] = useState<string>("")
+
+  // Fetch case data when on case or scenario page
+  useEffect(() => {
+    const pathname = location.pathname
+    const search = location.search as { id?: string; caseId?: number; simulationId?: number }
+
+    let caseId: number | undefined
+
+    if (pathname === "/case") {
+      caseId = search.id ? Number(search.id) : undefined
+    } else if (pathname === "/scenario") {
+      caseId = search.caseId
+    }
+
+    if (caseId) {
+      getCaseWithSimulations(caseId)
+        .then((data) => {
+          setCaseTitle(data.name || "")
+        })
+        .catch((err) => {
+          console.error("Error fetching case:", err)
+          setCaseTitle("")
+        })
+    } else {
+      setCaseTitle("")
+    }
+  }, [location.pathname, location.search])
+
+  // Fetch simulation data when on scenario page
+  useEffect(() => {
+    const pathname = location.pathname
+    const search = location.search as { simulationId?: number }
+
+    if (pathname === "/scenario" && search.simulationId) {
+      getSimulation(search.simulationId)
+        .then((data) => {
+          setSimulationTitle(data.headline || "")
+        })
+        .catch((err) => {
+          console.error("Error fetching simulation:", err)
+          setSimulationTitle("")
+        })
+    } else {
+      setSimulationTitle("")
+    }
+  }, [location.pathname, location.search])
 
   // Build breadcrumb items based on current route
   const getBreadcrumbItems = (): BreadcrumbItem[] => {
@@ -40,17 +90,8 @@ export default function Header() {
         caseId = search.id
       }
 
-      // Mock case titles - in production this would come from backend or context
-      const caseTitles: Record<string, string> = {
-        "1": "Smith v. Johnson",
-        "2": "Estate Planning",
-        "3": "Corporate Merger",
-      }
-
-      const caseTitle = caseId ? caseTitles[caseId] : "Case"
-
       items.push({
-        label: caseTitle,
+        label: caseTitle || "Case",
         path: "/case",
         search: caseId ? { id: caseId } : undefined,
       })
@@ -58,23 +99,7 @@ export default function Header() {
 
     // Add Scenario if we're on scenario page
     if (pathname === "/scenario") {
-      const search = location.search as { caseId?: number; simulationId?: number }
-      const simulationId = search.simulationId
-
-      // Mock simulation titles - in production this would come from backend
-      const simulationTitles: Record<number, string> = {
-        1: "Mediation Session",
-        2: "Settlement Negotiation",
-        3: "Trial Outcome",
-        4: "Trust Distribution",
-        5: "Family Inheritance",
-        6: "Valuation Negotiation",
-        7: "Regulatory Approval",
-      }
-
-      const scenarioTitle = simulationId ? simulationTitles[simulationId] || "Scenario" : "Scenario"
-
-      items.push({ label: scenarioTitle })
+      items.push({ label: simulationTitle || "Scenario" })
     }
 
     return items
@@ -117,20 +142,22 @@ export default function Header() {
               {breadcrumbItems.map((item, index) => {
                 const isLast = index === breadcrumbItems.length - 1
                 return (
-                  <Breadcrumb.Item key={index}>
-                    {isLast ? (
-                      <Breadcrumb.CurrentLink>{item.label}</Breadcrumb.CurrentLink>
-                    ) : (
-                      <Breadcrumb.Link
-                        onClick={() => handleBreadcrumbClick(item)}
-                        cursor="pointer"
-                        _hover={{ textDecoration: "underline" }}
-                      >
-                        {item.label}
-                      </Breadcrumb.Link>
-                    )}
+                  <Fragment key={index}>
+                    <Breadcrumb.Item>
+                      {isLast ? (
+                        <Breadcrumb.CurrentLink>{item.label}</Breadcrumb.CurrentLink>
+                      ) : (
+                        <Breadcrumb.Link
+                          onClick={() => handleBreadcrumbClick(item)}
+                          cursor="pointer"
+                          _hover={{ textDecoration: "underline" }}
+                        >
+                          {item.label}
+                        </Breadcrumb.Link>
+                      )}
+                    </Breadcrumb.Item>
                     {!isLast && <Breadcrumb.Separator>/</Breadcrumb.Separator>}
-                  </Breadcrumb.Item>
+                  </Fragment>
                 )
               })}
             </Breadcrumb.List>

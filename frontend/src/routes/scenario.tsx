@@ -109,7 +109,7 @@ function SimulationPage() {
 
         // Set simulation title
         setSimulationTitle(simulation.headline)
-        
+
         // Set bookmarks
         setBookmarks(bookmarksData)
 
@@ -521,7 +521,7 @@ const handleStopRecording = async () => {
           messageId: bookmark.message_id,
         },
       })
-      
+
       // Switch to current tab to see the conversation
       setActiveTab("current")
     } catch (err) {
@@ -538,11 +538,11 @@ const handleStopRecording = async () => {
   const handleDeleteBookmark = async (bookmarkId: number) => {
     try {
       await deleteBookmark(bookmarkId)
-      
+
       // Refresh bookmarks list
       const updatedBookmarks = await getBookmarks(simulationId)
       setBookmarks(updatedBookmarks)
-      
+
       toaster.create({
         title: "Bookmark deleted",
         description: "The bookmark has been removed successfully.",
@@ -575,7 +575,7 @@ const handleStopRecording = async () => {
     try {
       // Fetch audio from backend
       const audioBlob = await getConversationAudio(simulationId, currentMessageId)
-      
+
       // Create object URL for the audio blob
       const audioUrl = URL.createObjectURL(audioBlob)
       setNarrationUrl(audioUrl)
@@ -611,7 +611,7 @@ const handleStopRecording = async () => {
 
     try {
       const audio = new Audio(narrationUrl)
-      
+
       // Handle audio events
       audio.onerror = (e) => {
         console.error("Audio playback error:", e)
@@ -624,7 +624,7 @@ const handleStopRecording = async () => {
 
       // Play the audio
       await audio.play()
-      
+
       toaster.create({
         title: "Playing narration",
         description: "Audio playback started.",
@@ -713,6 +713,38 @@ const handleStopRecording = async () => {
 
             {/* Current Tab - Conversation History */}
             <Tabs.Content value="current" flex={1} display="flex" flexDirection="column" minH={0} padding="0px">
+              <Box p={4} borderBottom="1px solid" borderColor="gray.200" flexShrink={0}>
+                <VStack gap={2} width="100%">
+                  <Button
+                    width="100%"
+                    variant="outline"
+                    size="sm"
+                    color="darkGrey.text"
+                    borderColor="darkGrey.text"
+                    _hover={{ bg: "gray.100" }}
+                    onClick={
+                      narrationUrl ? handlePlayNarration : handleGenerateVoiceover
+                    }
+                    loading={isGeneratingVoiceover}
+                    loadingText="Generating..."
+                  >
+                    {narrationUrl ? <FiPlay /> : <FiMic />}
+                    {narrationUrl ? "Play" : "Generate Narration"}
+                  </Button>
+                  <Button
+                    width="100%"
+                    variant="outline"
+                    size="sm"
+                    color="darkGrey.text"
+                    borderColor="darkGrey.text"
+                    _hover={{ bg: "gray.100" }}
+                    onClick={() => setIsSaveModalOpen(true)}
+                  >
+                    <FiSave />
+                    Bookmark
+                  </Button>
+                </VStack>
+              </Box>
               <ScrollArea.Root flex={1} minH={0}>
                 <ScrollArea.Viewport>
                   <ScrollArea.Content p={4} padding="4" textStyle="sm">
@@ -748,7 +780,11 @@ const handleStopRecording = async () => {
                 </ScrollArea.Viewport>
                 <ScrollArea.Scrollbar />
               </ScrollArea.Root>
-              <Box p={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
+            </Tabs.Content>
+
+            {/* Bookmarked Tab - Saved Scenarios */}
+            <Tabs.Content value="bookmarked" flex={1} display="flex" flexDirection="column" minH={0}>
+              <Box p={4} borderBottom="1px solid" borderColor="gray.200" flexShrink={0}>
                 <VStack gap={2} width="100%">
                   {narrationUrl ? (
                     <>
@@ -811,10 +847,6 @@ const handleStopRecording = async () => {
                   </Button>
                 </VStack>
               </Box>
-            </Tabs.Content>
-
-            {/* Bookmarked Tab - Saved Scenarios */}
-            <Tabs.Content value="bookmarked" flex={1} display="flex" flexDirection="column" minH={0}>
               <ScrollArea.Root flex={1} minH={0}>
                 <ScrollArea.Viewport>
                   <ScrollArea.Content p={4} paddingEnd="3" textStyle="sm">
@@ -932,7 +964,14 @@ const handleStopRecording = async () => {
         </Box>
 
         {/* Main Content Area */}
-        <Box flex={1}>
+        <Box
+          flex={1}
+          display="flex"
+          flexDirection="column"
+          position={viewMode === "tree" ? "sticky" : "relative"}
+          top={viewMode === "tree" ? "32px" : "auto"}
+          height={viewMode === "tree" ? "calc(100vh - 160px)" : "auto"}
+        >
 
             {/* View Mode Switch */}
             <Box
@@ -940,6 +979,7 @@ const handleStopRecording = async () => {
               borderRadius="md"
               mb={6}
               shadow="sm"
+              flexShrink={0}
             >
               {/* Explorer Header */}
               <Box p={4} borderBottom="1px solid" borderColor="gray.200">
@@ -1127,32 +1167,17 @@ const handleStopRecording = async () => {
                   </>
                 ) : (
                   <>
-                    {/* Tree Visualization View - Placeholder */}
+                    {/* Tree Visualization View */}
                     <Box
                       bg="white"
                       borderRadius="md"
-                      border="2px dashed"
-                      borderColor="gray.300"
-                      p={12}
-                      textAlign="center"
-                      minHeight="500px"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
+                      p={4}
+                      flex={1}
+                      width="100%"
+                      position="relative"
+                      minH={0}
                     >
-                     <Box
-                    bg="white"
-                    borderRadius="md"
-                    border="2px dashed"
-                    borderColor="gray.300"
-                    p={4}
-                    height="500px"
-                    width="100%"
-                    position="relative"
-                  >
-                    <Flow simulationId={simulationId} />
-                   </Box>
-
+                      <Flow simulationId={simulationId} />
                     </Box>
                   </>
                 )}
