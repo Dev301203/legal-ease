@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from typing import List, Optional, Dict, Any
@@ -10,6 +12,12 @@ from app.crud import get_messages_by_tree, get_selected_messages_between, \
 from app.models import Message
 from app.schemas import TreeResponse
 from app.api.routes.tree_generation import create_tree, save_messages_to_tree
+
+from app.models import Message, Case, Simulation
+from typing import List, Optional
+
+from app.schemas import CaseWithTreeCount
+from sqlmodel import select, func
 
 router = APIRouter()
 
@@ -42,7 +50,7 @@ def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
                 (Message.parent_id == msg.id) & (Message.selected == True)
             )
         ).first() is not None
-        
+
         if not has_selected_children:
             return msg.id
 
@@ -90,13 +98,13 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
         if tree_id is None:
             # No prior history - generate new tree
             tree_data = create_tree(case_background, "", simulation_goal, "")
-            
+
             # Save the messages to the database (creates new tree)
             saved_tree_id = save_messages_to_tree(
-                session, 
-                case_id, 
-                tree_data, 
-                existing_tree_id=None, 
+                session,
+                case_id,
+                tree_data,
+                existing_tree_id=None,
                 last_message_id=None
             )
 
@@ -107,27 +115,27 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
                 "simulation_goal": simulation_goal,
                 **tree_data
             }
-        
+
         # Tree_id provided - continue existing conversation
         # Get the ID of the last selected message
         last_message_id = get_last_message_id_from_tree(session, tree_id)
-        
+
         # Check if the last selected message is a leaf node
         if is_leaf_node(session, last_message_id):
             # Leaf node - generate new messages and save them
             messages_history = get_messages_by_tree(session, tree_id)
             last_message = session.get(Message, last_message_id)
             last_message_content = last_message.content if last_message else ""
-            
+
             # Generate a tree of messages based on the case background and simulation goal
             tree_data = create_tree(case_background, messages_history, simulation_goal, last_message_content)
 
             # Save the messages to the database
             saved_tree_id = save_messages_to_tree(
-                session, 
-                case_id, 
-                tree_data, 
-                existing_tree_id=tree_id, 
+                session,
+                case_id,
+                tree_data,
+                existing_tree_id=tree_id,
                 last_message_id=last_message_id
             )
 
@@ -141,7 +149,7 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
         else:
             # Not a leaf node - return existing children
             children = get_message_children_for_tree(session, last_message_id)
-            
+
             # Convert children to the expected format
             children_responses = []
             for child in children:
@@ -156,7 +164,7 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
                         "reflects_personality": "Generated response",
                         "responses": []
                     })
-                
+
                 children_responses.append({
                     "speaker": child.role,
                     "line": child.content,
@@ -164,7 +172,7 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
                     "reflects_personality": "Generated response",
                     "responses": grandchildren_responses
                 })
-            
+
             # Create a mock scenarios_tree structure
             last_message = session.get(Message, last_message_id)
             scenarios_tree = {
@@ -174,33 +182,33 @@ async def continue_conversation(request: ContinueConversationRequest, session: S
                 "reflects_personality": "Current message",
                 "responses": children_responses
             }
-            
+
             return {
                 "tree_id": tree_id,
                 "case_id": case_id,
                 "simulation_goal": simulation_goal,
                 "scenarios_tree": scenarios_tree
             }
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error continuing conversation: {str(e)}")
 
 
-@router.get("/trees/{tree_id}/messages", response_model=List[dict])
+@router.get("/trees/{simulation_id}/messages", response_model=List[dict])
 def get_tree_messages_endpoint(
-    tree_id: int,
+    simulation_id: int,
     session: Session = Depends(get_session),
 ):
     """
-    Return all messages for a specific tree_id (both selected and unselected)
+    Return all messages for a specific simulation_id (both selected and unselected)
     in a hierarchical chronological structure.
     """
 
     # Reuse your existing function
-    messages = get_tree(session, tree_id)
+    messages = get_tree(session, simulation_id)
 
     if not messages:
-        raise HTTPException(status_code=404, detail="No messages found for this tree_id")
+        raise HTTPException(status_code=404, detail="No messages found for this simulation_id")
 
     # Build mapping for hierarchy
     by_parent: dict[Optional[int], list[Message]] = {}
@@ -253,7 +261,7 @@ def get_selected_messages_path(
             "content": m.content,
             "selected": m.selected,
             "parent_id": m.parent_id,
-            "tree_id": m.tree_id,
+            "simulation_id": m.simulation_id,
         }
         for m in messages
     ]
@@ -311,9 +319,87 @@ def create_message(
         role=role,
         selected=True,  # Custom messages are automatically selected
     )
-    
+
     db.add(new_message)
     db.commit()
     db.refresh(new_message)
-    
+
     return new_message
+
+@router.get("/cases", response_model=List[CaseWithTreeCount])
+def get_all_cases(db: Session = Depends(get_session)):
+    """Return all cases with the number of trees for each case."""
+    cases = db.exec(select(Case)).all()
+
+    result = []
+    for case in cases:
+        tree_count = db.exec(
+            select(func.count(Simulation.id)).where(Simulation.case_id == case.id)
+        ).one()  # returns a tuple like (count,)
+        result.append(
+            CaseWithTreeCount(
+                id=case.id,
+                name=case.name,
+                party_a=case.party_a,
+                party_b=case.party_b,
+                context=case.context,
+                last_modified=case.last_modified,
+                scenario_count=tree_count,  # extract integer
+            )
+        )
+    return result
+
+
+@router.get("/cases/{case_id}")
+def get_case_with_simulations(case_id: int, session: Session = Depends(get_session)):
+    """
+    Get one case by ID, including its background and all simulations.
+    Returns data matching the CaseData interface for the frontend.
+    """
+    # Fetch case
+    case = session.exec(select(Case).where(Case.id == case_id)).first()
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found.")
+
+    # Fetch simulations
+    simulations = session.exec(select(Simulation).where(Simulation.case_id == case.id)).all()
+
+    # Count messages per simulation (optional but fits nodeCount)
+    node_counts = {}
+    for sim in simulations:
+        count = session.exec(
+            select(func.count(Message.id)).where(Message.simulation_id == sim.id)
+        ).first()
+        node_counts[sim.id] = count or 0
+
+    # === Parse background (stored JSON in `context`) ===
+    # Your Case.context is a JSON string
+    try:
+        background_data = json.loads(case.context)
+    except Exception:
+        background_data = {}
+
+    background = {
+        "party_a": background_data.get("parties", {}).get("party_A", {}).get("name"),
+        "party_b": background_data.get("parties", {}).get("party_B", {}).get("name"),
+        "key_issues": background_data.get("key_issues", ""),
+        "general_notes": background_data.get("general_notes", ""),
+    }
+
+    # === Construct response ===
+    return {
+        "id": str(case.id),
+        "name": case.name,
+        "summary": case.summary,
+        "background": background,
+        "simulations": [
+            {
+                "id": str(sim.id),
+                "headline": sim.headline,
+                "brief": sim.brief,
+                "created_at": sim.created_at.isoformat(),
+                "node_count": node_counts.get(sim.id, 0)
+            }
+            for sim in simulations
+        ],
+    }

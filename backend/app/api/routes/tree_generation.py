@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.crud import get_case_context, get_messages_by_tree
 from app.schemas import TreeResponse, ScenariosTreeResponse
-from app.models import Tree, Message
+from app.models import Simulation, Message
 from sqlmodel import Session, select
 from typing import Dict, Any
 
@@ -176,7 +176,7 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
     """
     try:
         # Create a new Tree record
-        tree = Tree(case_id=case_id)
+        tree = Simulation(case_id=case_id)
         session.add(tree)
         session.commit()
         session.refresh(tree)
@@ -249,7 +249,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
         
         if existing_tree_id is None:
             # No existing tree - create new tree with level1 as root
-            tree = Tree(case_id=case_id)
+            tree = Simulation(case_id=case_id)
             session.add(tree)
             session.commit()
             session.refresh(tree)

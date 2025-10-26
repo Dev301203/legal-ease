@@ -23,7 +23,7 @@ def get_case_context(session: Session, case_id: int) -> str | None:
 def get_messages_by_tree(session: Session, tree_id: int) -> list[Message]:
     """Retrieve messages for a tree_id in hierarchical order (DFS), only selected ones."""
     statement = select(Message).where(
-        (Message.tree_id == tree_id) & (Message.selected == True)
+        (Message.simulation_id == tree_id) & (Message.selected == True)
     )
     messages = session.exec(statement).all()
 
@@ -61,7 +61,7 @@ def get_tree(session: Session, tree_id: int) -> list[Message]:
     - Then branches with multiple options (usually 3 per side)
     """
     # Fetch all messages for the tree (no selected filter)
-    statement = select(Message).where(Message.tree_id == tree_id)
+    statement = select(Message).where(Message.simulation_id == tree_id)
     messages = session.exec(statement).all()
 
     if not messages:
@@ -189,7 +189,7 @@ def delete_messages_after_children(session: Session, message_id: int) -> int:
 
     # Delete all messages in this tree with id > last_child_id
     delete_stmt = delete(Message).where(
-        (Message.tree_id == target.tree_id) & (Message.id > last_child_id)
+        (Message.simulation_id == target.simulation_id) & (Message.id > last_child_id)
     )
 
     result = session.exec(delete_stmt)
@@ -240,7 +240,7 @@ def update_message_selected(db: Session, message_id: int) -> Message:
         if message.parent_id is not None
         else Message.parent_id.is_(None),
         Message.id != message_id,
-        Message.tree_id == message.tree_id,
+        Message.simulation_id == message.simulation_id,
         Message.selected == True
     )
     selected_sibling = db.exec(sibling_query).first()

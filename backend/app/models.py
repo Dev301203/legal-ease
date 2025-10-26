@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import EmailStr
 from sqlmodel import Field, Relationship, SQLModel
@@ -15,13 +16,18 @@ class UserBase(SQLModel):
 class Case(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     name: str = Field(default=None)
-    legal_side: str = Field(default=None)
-    client: str = Field(default=None)
+    party_a: str = Field(default=None)
+    party_b: str = Field(default=None)
     context: str = Field(default=None)
+    summary: str = Field(default=None)
+    last_modified: datetime = Field(default_factory=datetime.utcnow)  # <-- new field
 
 
-class Tree(SQLModel, table=True):
+class Simulation(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
+    headline: str = Field(default=None)
+    brief: str = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     case_id: int = Field(foreign_key="case.id", nullable=False, ondelete="CASCADE")
 
 class Message(SQLModel, table=True):
@@ -29,7 +35,7 @@ class Message(SQLModel, table=True):
     content: str = Field(default=None)
     role: str = Field(default=None) #todo enum
     selected: bool = Field(default=False)
-    tree_id: int = Field(foreign_key="tree.id", nullable=False, ondelete="CASCADE")
+    simulation_id: int = Field(foreign_key="simulation.id", nullable=False, ondelete="CASCADE")
     parent_id: int = Field(foreign_key="message.id", nullable=True)
 
 class Document(SQLModel, table=True):
@@ -133,3 +139,5 @@ class UserRegister(SQLModel):
 class UserUpdate(UserBase):
     email: EmailStr | None = Field(default=None, max_length=255)  # type: ignore
     password: str | None = Field(default=None, min_length=8, max_length=128)
+
+

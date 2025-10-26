@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 from typing import Optional, Literal, List, Dict, Any
 from app.models import Message
@@ -59,3 +61,13 @@ def messages_to_conversation(messages: list[Message]) -> ConversationResponse:
         for msg in messages
     ]
     return ConversationResponse(conversation=conversation_turns)
+
+
+class CaseWithTreeCount(BaseModel):
+    id: int
+    name: str
+    party_a: str
+    party_b: str
+    context: str
+    last_modified: datetime
+    scenario_count: int

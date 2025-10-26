@@ -1,5 +1,4 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
 import {
   Box,
   Button,
@@ -12,6 +11,8 @@ import {
   VStack,
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
+import { useEffect, useState } from "react"
+
 
 export const Route = createFileRoute("/cases")({
   component: CasesPage,
@@ -19,41 +20,53 @@ export const Route = createFileRoute("/cases")({
 
 interface Case {
   id: string
-  title: string
-  lastModified: Date
-  scenarioCount: number
+  name: string
+  last_modified: Date
+  scenario_count: number
 }
 
-// Mock data for now
-const mockCases: Case[] = [
-  {
-    id: "1",
-    title: "Smith v. Johnson Contract Dispute",
-    lastModified: new Date("2025-10-20"),
-    scenarioCount: 3,
-  },
-  {
-    id: "2",
-    title: "Estate Planning - Anderson Family",
-    lastModified: new Date("2025-10-18"),
-    scenarioCount: 5,
-  },
-  {
-    id: "3",
-    title: "Corporate Merger - TechCorp Inc.",
-    lastModified: new Date("2025-10-15"),
-    scenarioCount: 2,
-  },
-]
+// // Mock data for now
+// const mockCases: Case[] = [
+//   {
+//     id: "1",
+//     title: "Smith v. Johnson Contract Dispute",
+//     lastModified: new Date("2025-10-20"),
+//     scenarioCount: 3,
+//   },
+//   {
+//     id: "2",
+//     title: "Estate Planning - Anderson Family",
+//     lastModified: new Date("2025-10-18"),
+//     scenarioCount: 5,
+//   },
+//   {
+//     id: "3",
+//     title: "Corporate Merger - TechCorp Inc.",
+//     lastModified: new Date("2025-10-15"),
+//     scenarioCount: 2,
+//   },
+// ]
 
 function CasesPage() {
   const navigate = useNavigate()
   const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false)
   const [newCaseTitle, setNewCaseTitle] = useState("")
 
-  const handleNewCase = () => {
-    setIsNewCaseModalOpen(true)
-  }
+  const [cases, setCases] = useState<Case[]>([])
+
+
+
+
+    useEffect(() => {
+    fetch("http://localhost:8000/api/v1/cases") // adjust base URL if needed
+      .then((res) => res.json())
+      .then((data: Case[]) => setCases(data))
+      .catch((err) => console.error("Failed to fetch cases:", err))
+  }, [])
+
+  const handleNewCase = () => setIsNewCaseModalOpen(true)
+
+
 
   const handleCreateCase = () => {
     if (newCaseTitle.trim()) {
@@ -116,7 +129,7 @@ function CasesPage() {
           </Card.Root>
 
           {/* Existing Cases */}
-          {mockCases.map((caseItem) => (
+          {cases.map((caseItem) => (
             <Card.Root
               key={caseItem.id}
               cursor="pointer"
@@ -133,21 +146,21 @@ function CasesPage() {
                     lineClamp={2}
                     overflow="hidden"
                   >
-                    {caseItem.title}
+                    {caseItem.name}
                   </Heading>
 
                   <VStack alignItems="flex-start" gap={2} flex={1}>
                     <Text fontSize="med" color="#666">
                       Last modified:{" "}
-                      {caseItem.lastModified.toLocaleDateString("en-US", {
+                      {new Date(caseItem.last_modified).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
                       })}
                     </Text>
                     <Text fontSize="med" color="#666">
-                      {caseItem.scenarioCount}{" "}
-                      {caseItem.scenarioCount === 1
+                      {caseItem.scenario_count}{" "}
+                      {caseItem.scenario_count === 1
                         ? "scenario tree"
                         : "scenario trees"}
                     </Text>
