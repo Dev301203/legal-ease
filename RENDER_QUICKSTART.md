@@ -16,12 +16,13 @@ git push origin main
 ### Step 3: Deploy with Blueprint
 1. In Render Dashboard, click **"New"** → **"Blueprint"**
 2. Select your repository (`legal-ease`)
-3. Render will detect `render.yaml` and show 3 services:
-   - PostgreSQL Database
-   - Backend API
-   - Frontend
+3. Render will detect `render.yaml` and show:
+   - **1 PostgreSQL Database** (legal-ease-db)
+   - **2 Web Services** (Backend API + Frontend)
 
 4. Click **"Apply"** to create all services
+
+   ⚠️ **Note**: If you see an error about "service type not available for this plan", the blueprint will still create the database and web services correctly. This is expected with the free tier.
 
 ### Step 4: Configure Required Environment Variables
 

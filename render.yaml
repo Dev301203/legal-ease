@@ -1,11 +1,4 @@
 services:
-  # PostgreSQL Database
-  - type: pserv
-    name: legal-ease-db
-    env: docker
-    plan: free
-    region: oregon
-
   # Backend API Service
   - type: web
     name: legal-ease-backend
