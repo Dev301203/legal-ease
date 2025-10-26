@@ -207,7 +207,7 @@ function CasesPage() {
       {/* New Case Modal */}
       <Dialog.Root
         open={isNewCaseModalOpen}
-        onOpenChange={(e) => setIsNewCaseModalOpen(e.open)}
+        onOpenChange={(details) => setIsNewCaseModalOpen(details.open)}
       >
         <Dialog.Backdrop />
         <Dialog.Positioner>
@@ -227,8 +227,12 @@ function CasesPage() {
                     placeholder="e.g., Sterling v. Sterling"
                     autoFocus
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCreateCase()
-                      if (e.key === "Escape") handleCancelNewCase()
+                      if (e.key === "Enter" && newCaseTitle.trim()) {
+                        handleCreateCase()
+                      }
+                      if (e.key === "Escape") {
+                        handleCancelNewCase()
+                      }
                     }}
                   />
                 </Box>
@@ -236,7 +240,7 @@ function CasesPage() {
             </Dialog.Body>
             <Dialog.Footer>
               <Dialog.CloseTrigger asChild>
-                <Button variant="outline" onClick={handleCancelNewCase}>
+                <Button variant="outline">
                   Cancel
                 </Button>
               </Dialog.CloseTrigger>
@@ -246,6 +250,8 @@ function CasesPage() {
                 _hover={{ bg: "#2A2A2A" }}
                 onClick={handleCreateCase}
                 disabled={!newCaseTitle.trim()}
+                opacity={!newCaseTitle.trim() ? 0.5 : 1}
+                cursor={!newCaseTitle.trim() ? "not-allowed" : "pointer"}
               >
                 Create Case
               </Button>
