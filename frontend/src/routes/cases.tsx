@@ -40,7 +40,15 @@ function CasesPage() {
 
     useEffect(() => {
     DefaultService.getAllCases()
-      .then((data: Case[]) => setCases(data))
+      .then((data: any) => {
+        const cases = data.map((c: any) => ({
+          id: String(c.id),
+          name: c.name,
+          last_modified: new Date(c.last_modified),
+          scenario_count: c.scenario_count || 0,
+        }))
+        setCases(cases)
+      })
       .catch((err) => console.error("Failed to fetch cases:", err))
   }, [])
 

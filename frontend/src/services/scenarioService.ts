@@ -20,7 +20,7 @@ const API_BASE = `${import.meta.env.VITE_API_URL}/api/v1`
 export async function loadSimulationTree(
   simulationId: number
 ): Promise<TreeMessagesResponse[]> {
-  return await DefaultService.getTreeMessagesEndpoint({ simulationId })
+  return await DefaultService.getTreeMessagesEndpoint({ simulationId }) as any
 }
 
 /**
@@ -78,15 +78,26 @@ export async function createCustomMessage(
   content: string,
   role: string = "user"
 ): Promise<MessageCreateResponse> {
-  return await DefaultService.createMessage({
-    requestBody: {
+  // Note: Using fetch directly because the generated client doesn't match the summarized endpoint
+  const response = await fetch(`${API_BASE}/messages/create-summarized`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
       simulation_id: simulationId,
       parent_id: parentId,
       user_input: content,
       role,
       desired_length: 15, // Summarize to 15 words
-    },
+    }),
   })
+
+  if (!response.ok) {
+    throw new Error(`Failed to create message: ${response.statusText}`)
+  }
+
+  return await response.json()
 }
 
 /**
@@ -125,10 +136,14 @@ export async function trimMessagesAfter(messageId: number): Promise<void> {
  * @throws Error if audio generation fails
  */
 export async function getConversationAudio(simulationId: number, messageId: number): Promise<Blob> {
-  return await DefaultService.getConversationAudio({
-    simulationId,
-    endMessageId: messageId
-  })
+  // Note: Using fetch directly because generated client doesn't accept endMessageId parameter
+  const response = await fetch(`${API_BASE}/get-conversation-audio/${simulationId}?end_message_id=${messageId}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to get conversation audio: ${response.statusText}`)
+  }
+
+  return await response.blob()
 }
 
 /**
