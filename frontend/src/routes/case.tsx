@@ -310,7 +310,7 @@ useEffect(() => {
 
       // Get the updated case data including the regenerated summary
       const data = await response.json()
-      
+
       // Update the summary with the regenerated value from the API
       setCaseData({ ...caseData, summary: data.summary })
 
@@ -360,21 +360,31 @@ useEffect(() => {
       const data = await response.json()
       const newSimulationId = data.id
 
-      setIsNewSimulationOpen(false)
-      setSimulationTitle("")
-      setSimulationBrief("")
-
-      // Navigate to the new simulation
-      navigate({
-        to: "/scenario",
-        search: {
-          caseId: Number(id),
-          simulationId: newSimulationId,
+      // Call continue-conversation endpoint with the new simulation's tree_id
+      const conversationResponse = await fetch(`http://localhost:8000/api/v1/continue-conversation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          case_id: Number(id),
+          tree_id: Number(newSimulationId),
+          message_id: null,
+          refresh: false,
+        }),
       })
-    } catch (error) {
-      console.error("Error creating simulation:", error)
-      alert("Failed to create simulation. Please try again.")
+
+      if (!conversationResponse.ok) {
+        throw new Error("Failed to start conversation")
+      }
+
+      const conversationData = await conversationResponse.json()
+      console.log("Conversation started:", conversationData)
+
+      setIsNewSimulationOpen(false)
+      navigate({ to: "/scenario", search: { id: newSimulationId } })
+    } catch (err) {
+      console.error("Error generating simulation:", err)
     }
   }
 
@@ -795,5 +805,3 @@ useEffect(() => {
 }
 
 export default CasePage
-
-
