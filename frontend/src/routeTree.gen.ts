@@ -9,14 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SimulationRouteImport } from './routes/simulation'
+import { Route as ScenarioRouteImport } from './routes/scenario'
 import { Route as CasesRouteImport } from './routes/cases'
 import { Route as CaseRouteImport } from './routes/case'
 import { Route as IndexRouteImport } from './routes/index'
 
-const SimulationRoute = SimulationRouteImport.update({
-  id: '/simulation',
-  path: '/simulation',
+const ScenarioRoute = ScenarioRouteImport.update({
+  id: '/scenario',
+  path: '/scenario',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CasesRoute = CasesRouteImport.update({
@@ -39,43 +39,43 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/case': typeof CaseRoute
   '/cases': typeof CasesRoute
-  '/simulation': typeof SimulationRoute
+  '/scenario': typeof ScenarioRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/case': typeof CaseRoute
   '/cases': typeof CasesRoute
-  '/simulation': typeof SimulationRoute
+  '/scenario': typeof ScenarioRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/case': typeof CaseRoute
   '/cases': typeof CasesRoute
-  '/simulation': typeof SimulationRoute
+  '/scenario': typeof ScenarioRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/case' | '/cases' | '/simulation'
+  fullPaths: '/' | '/case' | '/cases' | '/scenario'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/case' | '/cases' | '/simulation'
-  id: '__root__' | '/' | '/case' | '/cases' | '/simulation'
+  to: '/' | '/case' | '/cases' | '/scenario'
+  id: '__root__' | '/' | '/case' | '/cases' | '/scenario'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CaseRoute: typeof CaseRoute
   CasesRoute: typeof CasesRoute
-  SimulationRoute: typeof SimulationRoute
+  ScenarioRoute: typeof ScenarioRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/simulation': {
-      id: '/simulation'
-      path: '/simulation'
-      fullPath: '/simulation'
-      preLoaderRoute: typeof SimulationRouteImport
+    '/scenario': {
+      id: '/scenario'
+      path: '/scenario'
+      fullPath: '/scenario'
+      preLoaderRoute: typeof ScenarioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cases': {
@@ -106,7 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CaseRoute: CaseRoute,
   CasesRoute: CasesRoute,
-  SimulationRoute: SimulationRoute,
+  ScenarioRoute: ScenarioRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,4 +1,4 @@
-import { Button, Center, Flex, Text } from "@chakra-ui/react"
+import { Button, Center, Flex, Image, Text } from "@chakra-ui/react"
 import { Link } from "@tanstack/react-router"
 
 const NotFound = () => {
@@ -10,7 +10,21 @@ const NotFound = () => {
       flexDir="column"
       data-testid="not-found"
       p={4}
+      position="relative"
     >
+      <Image
+        src="/assets/images/spilled-ink.png"
+        alt="Spilled ink"
+        position="absolute"
+        top="50%"
+        left="50%"
+        transform="translate(-20%, -30%)"
+        opacity={0.3}
+        mixBlendMode="multiply"
+        zIndex={0}
+        w="80%"
+        maxW="600px"
+      />
       <Flex alignItems="center" zIndex={1}>
         <Flex flexDir="column" ml={4} align="center" justify="center" p={4}>
           <Text

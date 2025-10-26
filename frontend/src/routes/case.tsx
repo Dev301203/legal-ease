@@ -196,9 +196,11 @@ function CasePage() {
     if (simulationBrief.trim()) {
       // TODO: Generate simulation via backend
       // For now, create mock simulation and navigate
+      // Navigate to root node of the new simulation
       const newSimulationId = `sim-${Date.now()}`
+      const rootNodeId = `${newSimulationId}-root`
       setIsNewSimulationOpen(false)
-      navigate({ to: "/simulation", search: { id: newSimulationId } })
+      navigate({ to: "/scenario", search: { id: rootNodeId } })
     }
   }
 
@@ -377,7 +379,7 @@ function CasePage() {
                 _hover={{ shadow: "md" }}
                 transition="all 0.2s"
                 onClick={() =>
-                  navigate({ to: "/simulation", search: { id: simulation.id } })
+                  navigate({ to: "/scenario", search: { id: `${simulation.id}-root` } })
                 }
               >
                 <Card.Body>
