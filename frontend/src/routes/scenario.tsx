@@ -19,7 +19,7 @@ import {
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { toaster } from "@/components/ui/toaster"
-import { FiSave, FiMic, FiPlay, FiList, FiMap, FiGitBranch, FiRefreshCw } from "react-icons/fi"
+import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw } from "react-icons/fi"
 import type { DialogueNode, ResponseOption } from "@/types/scenario"
 import {
   loadSimulationTree,
@@ -33,10 +33,12 @@ import {
   getSelectedPath,
   getPathToNode,
   updateSelectedPath,
-  addCustomMessageToTree,
-  mergeBranchesIntoTree,
+  // addCustomMessageToTree,
+  // mergeBranchesIntoTree,
   isLeafNode,
 } from "@/utils/treeUtils"
+import Flow from "./tree";
+
 
 interface ScenarioSearchParams {
   caseId: number
@@ -292,13 +294,13 @@ const handleStopRecording = async () => {
       await selectMessage(newMessage.id)
 
       // Step 3: Add to local tree
-      let updatedTree = addCustomMessageToTree(
-        fullTree,
-        String(currentMessageId),
-        newMessage.id,
-        customResponse,
-        "user"
-      )
+      // let updatedTree = addCustomMessageToTree(
+      //   fullTree,
+      //   String(currentMessageId),
+      //   newMessage.id,
+      //   customResponse,
+      //   "user"
+      // )
 
       // Step 4: Call continue-conversation to generate AI responses
       await continueConversation(caseId, newMessage.id, simulationId, false)
@@ -835,15 +837,19 @@ const handleStopRecording = async () => {
                       alignItems="center"
                       justifyContent="center"
                     >
-                      <VStack gap={4}>
-                        <Icon as={FiGitBranch} boxSize={16} color="gray.400" />
-                        <Heading fontSize="xl" color="gray.600" fontWeight="medium">
-                          Tree Visualization
-                        </Heading>
-                        <Text fontSize="md" color="gray.500" maxW="400px">
-                          Interactive dialogue tree visualization will be displayed here, showing all conversation paths and branches.
-                        </Text>
-                      </VStack>
+                     <Box
+                    bg="white"
+                    borderRadius="md"
+                    border="2px dashed"
+                    borderColor="gray.300"
+                    p={4}
+                    height="500px"
+                    width="100%"
+                    position="relative"
+                  >
+                    <Flow simulationId={simulationId} />
+                   </Box>
+
                     </Box>
                   </>
                 )}

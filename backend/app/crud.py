@@ -47,7 +47,7 @@ def format_case_background_for_llm(context_json: str) -> str:
 
 
 
-def get_messages_by_tree(session: Session, tree_id: int, message_id: int = None) -> str:
+def get_messages_by_tree(session: Session, tree_id: int, message_id: int = None, to_conversation=True):
     """Retrieve messages from message_id up to the root in hierarchical order.
     If message_id is None, returns all messages in the tree."""
     
@@ -84,10 +84,22 @@ def get_messages_by_tree(session: Session, tree_id: int, message_id: int = None)
                 dfs(msg.id)
 
         dfs(None)
-    
-    # Convert to conversation format
-    conversation_json = messages_to_conversation(ordered).model_dump_json(indent=2)
-    return conversation_json
+
+    if to_conversation:
+        # Convert to conversation format
+        return messages_to_conversation(ordered).model_dump_json(indent=2)
+    else:
+        return     [
+        {
+            "id": msg.id,
+            "parent_id": msg.parent_id,
+            "role": msg.role,
+            "content": msg.content,
+            "simulation_id": msg.simulation_id
+        }
+        for msg in ordered
+    ]
+
 
 def get_tree(session: Session, tree_id: int) -> list[Message]:
     """

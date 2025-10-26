@@ -617,3 +617,10 @@ def delete_bookmark_endpoint(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting bookmark: {str(e)}")
+
+
+
+@router.get("/trees/{simulation_id}/messages/traversal")
+def get_messages_by_tree_endpoint(simulation_id: int, message_id: int | None = None, db: Session = Depends(get_session)):
+
+    return get_messages_by_tree(db, simulation_id, message_id, to_conversation=False)
