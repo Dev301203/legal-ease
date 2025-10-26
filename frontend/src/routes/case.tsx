@@ -69,6 +69,7 @@ function CasePage() {
   const [isNewSimulationOpen, setIsNewSimulationOpen] = useState(false)
   const [simulationTitle, setSimulationTitle] = useState("")
   const [simulationBrief, setSimulationBrief] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
 
 // const [recognition, setRecognition] = useState<any>(null)
 const [isRecording, setIsRecording] = useState(false)
@@ -339,6 +340,7 @@ useEffect(() => {
   const handleGenerateSimulation = async () => {
     if (!simulationTitle.trim() || !simulationBrief.trim() || !caseData) return
 
+    setIsGenerating(true)
     try {
       // Call backend to create simulation
       const response = await fetch(`http://localhost:8000/api/v1/simulations`, {
@@ -401,6 +403,8 @@ useEffect(() => {
       })
     } catch (err) {
       console.error("Error generating simulation:", err)
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -408,6 +412,7 @@ useEffect(() => {
     setIsNewSimulationOpen(false)
     setSimulationTitle("")
     setSimulationBrief("")
+    setIsGenerating(false)
   }
 
   if (loading) {
@@ -795,7 +800,9 @@ useEffect(() => {
                 color="#F4ECD8"
                 _hover={{ bg: "#2A2A2A" }}
                 onClick={handleGenerateSimulation}
-                disabled={!simulationTitle.trim() || !simulationBrief.trim()}
+                disabled={!simulationTitle.trim() || !simulationBrief.trim() || isGenerating}
+                loading={isGenerating}
+                loadingText="Generating..."
               >
                 Generate
               </Button>

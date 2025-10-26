@@ -9,6 +9,7 @@ import {
   HStack,
   Icon,
   Input,
+  ScrollArea,
   Skeleton,
   Spinner,
   Switch,
@@ -24,7 +25,8 @@ import type { DialogueNode, ResponseOption } from "@/types/scenario"
 import {
   loadSimulationTree,
   continueConversation,
-  createCustomMessage
+  createCustomMessage,
+  getSimulation,
 } from "@/services/scenarioService"
 import {
   buildDialogueTreeFromMessages,
@@ -32,8 +34,6 @@ import {
   getSelectedPath,
   getPathToNode,
   updateSelectedPath,
-  // addCustomMessageToTree,
-  // mergeBranchesIntoTree,
   isLeafNode,
 } from "@/utils/treeUtils"
 import Flow from "./tree";
@@ -66,6 +66,7 @@ function SimulationPage() {
   const [fullTree, setFullTree] = useState<DialogueNode | null>(null)
   const [currentMessageId, setCurrentMessageId] = useState<number | null>(messageId || null)
   const [error, setError] = useState<string | null>(null)
+  const [simulationTitle, setSimulationTitle] = useState<string>("")
 
   // State management - EXISTING (keep these)
   const [customResponse, setCustomResponse] = useState("")
@@ -89,8 +90,14 @@ function SimulationPage() {
       setError(null)
 
       try {
-        // Load the full message tree from backend
-        const messages = await loadSimulationTree(simulationId)
+        // Load simulation details and message tree in parallel
+        const [simulation, messages] = await Promise.all([
+          getSimulation(simulationId),
+          loadSimulationTree(simulationId)
+        ])
+
+        // Set simulation title
+        setSimulationTitle(simulation.headline)
 
         if (!messages || messages.length === 0) {
           setError("No messages found for this simulation")
@@ -284,7 +291,7 @@ const handleStopRecording = async () => {
       // Determine the role from the current node's children
       // The custom response should match the role of the available options
       const node = findNodeInTree(fullTree, String(currentMessageId))
-      const role = node && node.children && node.children.length > 0 
+      const role = node && node.children && node.children.length > 0
         ? node.children[0].party // Get role from first child
         : "user" // Default fallback
 
@@ -303,7 +310,7 @@ const handleStopRecording = async () => {
 
       // Step 4: Reload the full tree from backend to get the newly generated subtree
       const updatedMessages = await loadSimulationTree(simulationId)
-      const freshTree = buildDialogueTreeFromMessages(updatedMessages)  
+      const freshTree = buildDialogueTreeFromMessages(updatedMessages)
 
       if (!freshTree) {
         throw new Error("Failed to rebuild dialogue tree after generation")
@@ -350,25 +357,19 @@ const handleStopRecording = async () => {
       }
 
       const messageIdNum = Number(responseId)
+      const isLeaf = isLeafNode(selectedNode)
 
-      // Step 1: Update local tree selection immediately
+      // Step 1: Mark message as selected in backend
+      await selectMessage(messageIdNum)
+
+      // Step 2: Update local tree selection
       const updatedTree = updateSelectedPath(fullTree, responseId)
       setFullTree(updatedTree)
 
-      // Step 2: Navigate to selected node immediately (updates UI)
-      navigate({
-        to: "/scenario",
-        search: {
-          caseId,
-          simulationId,
-          messageId: messageIdNum,
-        },
-      })
-
-      // Step 3: Check if this is a leaf node and generate responses
-      if (isLeafNode(selectedNode)) {
-        // Set loading state after UI update
+      // Step 3: If it's a leaf node, generate responses first, THEN navigate
+      if (isLeaf) {
         setIsGeneratingResponses(true)
+        setCurrentMessageId(messageIdNum) // Update current message ID for the UI
 
         try {
           // Leaf node - need to generate new responses
@@ -392,6 +393,16 @@ const handleStopRecording = async () => {
           setIsGeneratingResponses(false)
         }
       }
+
+      // Step 4: Navigate to selected node (after generation for leaf nodes)
+      navigate({
+        to: "/scenario",
+        search: {
+          caseId,
+          simulationId,
+          messageId: messageIdNum,
+        },
+      })
     } catch (err: any) {
       console.error("Error selecting response:", err)
       toaster.create({
@@ -489,10 +500,10 @@ const handleStopRecording = async () => {
       <Container maxW="1200px">
         {/* Simulation Title */}
         <Heading fontSize="3xl" fontWeight="bold" color="#3A3A3A" mb={6}>
-          Scenario Explorer [PUT SIMULATION TITLE HERE]
+          {simulationTitle || "Scenario Explorer"}
         </Heading>
 
-        <HStack alignItems="stretch" gap={6}>
+        <HStack alignItems="flex-start" gap={6}>
           {/* Left Column - Conversation History */}
           <Box
             width="280px"
@@ -501,11 +512,12 @@ const handleStopRecording = async () => {
             shadow="sm"
             display="flex"
             flexDirection="column"
-            // minHeight="calc(100vh - 120px)"
-            maxHeight="calc(100vh - 120px)"
+            position="sticky"
+            top="32px"
+            height="calc(100vh - 160px)"
           >
           {/* Sidebar Header */}
-          <Box p={4} borderBottom="1px solid" borderColor="gray.200">
+          <Box p={4} borderBottom="1px solid" borderColor="gray.200" flexShrink={0}>
             <Heading fontSize="xl" fontWeight="semibold" color="#3A3A3A">
               Scenarios
             </Heading>
@@ -518,101 +530,132 @@ const handleStopRecording = async () => {
             flex={1}
             display="flex"
             flexDirection="column"
+            minH={0}
           >
-            <Tabs.List px={4} pt={2}>
+            <Tabs.List px={4} pt={2} flexShrink={0}>
               <Tabs.Trigger value="current" fontWeight="semibold">Current</Tabs.Trigger>
               <Tabs.Trigger value="bookmarked" fontWeight="semibold">Bookmarked</Tabs.Trigger>
             </Tabs.List>
 
             {/* Current Tab - Conversation History */}
-            <Tabs.Content value="current" flex={1} overflowY="auto" p={4}>
-              <VStack gap={2} alignItems="stretch">
-                {conversationHistory.map((node, index) => (
-                  <Box
-                    key={node.id}
-                    p={3}
-                    bg="white"
-                    border="2px solid"
-                    borderColor={node.party === "A" ? "slate.500" : "salmon.500"}
-                    borderRadius="md"
-                    cursor="pointer"
-                    opacity={index === conversationHistory.length - 1 ? 1 : 0.7}
-                    _hover={{
-                      opacity: 1,
-                      shadow: "sm",
-                      borderColor: node.party === "A" ? "slate.600" : "salmon.600",
-                    }}
-                    onClick={() => handleNavigateToNode(node.id)}
-                    transition="all 0.2s"
+            <Tabs.Content value="current" flex={1} display="flex" flexDirection="column" minH={0} padding="0px">
+              <ScrollArea.Root flex={1} minH={0}>
+                <ScrollArea.Viewport>
+                  <ScrollArea.Content p={4} padding="4" textStyle="sm">
+                    <VStack gap={2} alignItems="stretch">
+                      {conversationHistory.map((node, index) => (
+                        <Box
+                          key={node.id}
+                          p={3}
+                          bg="white"
+                          border="2px solid"
+                          borderColor={node.party === "A" ? "slate.500" : "salmon.500"}
+                          borderRadius="md"
+                          cursor="pointer"
+                          opacity={index === conversationHistory.length - 1 ? 1 : 0.7}
+                          _hover={{
+                            opacity: 1,
+                            shadow: "sm",
+                            borderColor: node.party === "A" ? "slate.600" : "salmon.600",
+                          }}
+                          onClick={() => handleNavigateToNode(node.id)}
+                          transition="all 0.2s"
+                        >
+                          <Text fontSize="xs" fontWeight="bold" color="#3A3A3A" mb={1}>
+                            {node.party === "A" ? "Party A" : "Party B"}
+                          </Text>
+                          <Text fontSize="sm" color="#3A3A3A" lineHeight="1.4">
+                            {node.statement}
+                          </Text>
+                        </Box>
+                      ))}
+                    </VStack>
+                  </ScrollArea.Content>
+                </ScrollArea.Viewport>
+                <ScrollArea.Scrollbar />
+              </ScrollArea.Root>
+              <Box p={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
+                <VStack gap={2} width="100%">
+                  <Button
+                    width="100%"
+                    variant="outline"
+                    size="sm"
+                    color="darkGrey.text"
+                    borderColor="darkGrey.text"
+                    _hover={{ bg: "gray.100" }}
+                    onClick={
+                      narrationUrl ? handlePlayNarration : handleGenerateVoiceover
+                    }
+                    loading={isGeneratingVoiceover}
+                    loadingText="Generating..."
                   >
-                    <Text fontSize="xs" fontWeight="bold" color="#3A3A3A" mb={1}>
-                      {node.party === "A" ? "Party A" : "Party B"}
-                    </Text>
-                    <Text fontSize="sm" color="#3A3A3A" lineHeight="1.4">
-                      {node.statement}
-                    </Text>
-                  </Box>
-                ))}
-              </VStack>
+                    {narrationUrl ? <FiPlay /> : <FiMic />}
+                    {narrationUrl ? "Play" : "Generate Narration"}
+                  </Button>
+                  <Button
+                    width="100%"
+                    variant="outline"
+                    size="sm"
+                    color="darkGrey.text"
+                    borderColor="darkGrey.text"
+                    _hover={{ bg: "gray.100" }}
+                    onClick={() => setIsSaveModalOpen(true)}
+                  >
+                    <FiSave />
+                    Bookmark
+                  </Button>
+                </VStack>
+              </Box>
             </Tabs.Content>
 
             {/* Bookmarked Tab - Saved Scenarios */}
-            <Tabs.Content value="bookmarked" flex={1} overflowY="auto" p={4}>
-              <VStack gap={3} alignItems="stretch">
-                <Text fontSize="sm" color="#999" textAlign="center" py={4}>
-                  Bookmarking feature coming soon
-                </Text>
-              </VStack>
+            <Tabs.Content value="bookmarked" flex={1} display="flex" flexDirection="column" minH={0}>
+              <ScrollArea.Root flex={1} minH={0}>
+                <ScrollArea.Viewport>
+                  <ScrollArea.Content p={4} paddingEnd="3" textStyle="sm">
+                    <VStack gap={3} alignItems="stretch">
+                      <Text fontSize="sm" color="#999" textAlign="center" py={4}>
+                        Bookmarking feature coming soon
+                      </Text>
+                    </VStack>
+                  </ScrollArea.Content>
+                </ScrollArea.Viewport>
+                <ScrollArea.Scrollbar />
+              </ScrollArea.Root>
+              <Box p={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
+                <VStack gap={2} width="100%">
+                  <Button
+                    width="100%"
+                    variant="outline"
+                    size="sm"
+                    color="darkGrey.text"
+                    borderColor="darkGrey.text"
+                    _hover={{ bg: "gray.100" }}
+                    onClick={
+                      narrationUrl ? handlePlayNarration : handleGenerateVoiceover
+                    }
+                    loading={isGeneratingVoiceover}
+                    loadingText="Generating..."
+                  >
+                    {narrationUrl ? <FiPlay /> : <FiMic />}
+                    {narrationUrl ? "Play" : "Generate Narration"}
+                  </Button>
+                  <Button
+                    width="100%"
+                    variant="outline"
+                    size="sm"
+                    color="darkGrey.text"
+                    borderColor="darkGrey.text"
+                    _hover={{ bg: "gray.100" }}
+                    onClick={() => setIsSaveModalOpen(true)}
+                  >
+                    <FiSave />
+                    Bookmark
+                  </Button>
+                </VStack>
+              </Box>
             </Tabs.Content>
           </Tabs.Root>
-
-          {/* Sidebar Buttons - Only show in Current tab */}
-          {activeTab === "current" && (
-            <Box p={4} borderTop="1px solid" borderColor="gray.200">
-              <VStack gap={2} width="100%">
-                {/* <Button
-                  width="100%"
-                  variant="outline"
-                  size="sm"
-                  color="darkGrey.text"
-                  borderColor="darkGrey.text"
-                  _hover={{ bg: "gray.100" }}
-                  onClick={() => setViewMode(viewMode === "tree" ? "conversation" : "tree")}
-                >
-                  <FiEye />
-                  {viewMode === "tree" ? "Conversation" : "Tree View"}
-                </Button> */}
-                <Button
-                  width="100%"
-                  variant="outline"
-                  size="sm"
-                  color="darkGrey.text"
-                  borderColor="darkGrey.text"
-                  _hover={{ bg: "gray.100" }}
-                  onClick={
-                    narrationUrl ? handlePlayNarration : handleGenerateVoiceover
-                  }
-                  loading={isGeneratingVoiceover}
-                  loadingText="Generating..."
-                >
-                  {narrationUrl ? <FiPlay /> : <FiMic />}
-                  {narrationUrl ? "Play" : "Generate Narration"}
-                </Button>
-                <Button
-                  width="100%"
-                  variant="outline"
-                  size="sm"
-                  color="darkGrey.text"
-                  borderColor="darkGrey.text"
-                  _hover={{ bg: "gray.100" }}
-                  onClick={() => setIsSaveModalOpen(true)}
-                >
-                  <FiSave />
-                  Bookmark
-                </Button>
-              </VStack>
-            </Box>
-          )}
         </Box>
 
         {/* Main Content Area */}

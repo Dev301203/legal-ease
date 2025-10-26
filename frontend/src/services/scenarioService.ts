@@ -185,3 +185,28 @@ export async function getCaseWithSimulations(caseId: number): Promise<any> {
 
   return await response.json()
 }
+
+/**
+ * Get simulation details by ID
+ * @param simulationId - The simulation ID
+ * @returns Simulation details including headline, brief, created_at, case_id
+ * @throws Error if simulation not found
+ */
+export async function getSimulation(simulationId: number): Promise<{
+  id: number
+  headline: string
+  brief: string
+  created_at: string
+  case_id: number
+}> {
+  const response = await fetch(`${API_BASE}/simulations/${simulationId}`)
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Simulation not found")
+    }
+    throw new Error(`Failed to get simulation: ${response.statusText}`)
+  }
+
+  return await response.json()
+}
