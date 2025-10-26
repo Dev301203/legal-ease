@@ -1,3 +1,4 @@
+import logging
 import secrets
 import warnings
 from typing import Annotated, Any, Literal
@@ -15,9 +16,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # backend/
 ENV_PATH = BASE_DIR.parent / ".env"  # project-root/.env
+
+logger.info(f"Loading settings configuration:")
+logger.info(f"  BASE_DIR: {BASE_DIR}")
+logger.info(f"  ENV_PATH: {ENV_PATH}")
+logger.info(f"  .env file exists: {ENV_PATH.exists()}")
 
 def parse_cors(v: Any) -> list[str] | str:
     if isinstance(v, str) and not v.startswith("["):

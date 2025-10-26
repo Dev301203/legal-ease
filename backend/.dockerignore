@@ -6,3 +6,7 @@ app.egg-info
 .coverage
 htmlcov
 .venv
+
+# Environment files (should use platform env vars in production)
+.env
+*.env
