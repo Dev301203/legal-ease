@@ -9,6 +9,7 @@ import {
   HStack,
   Icon,
   Input,
+  Skeleton,
   Spinner,
   Switch,
   Tabs,
@@ -63,7 +64,6 @@ function SimulationPage() {
   // State management - NEW
   const [fullTree, setFullTree] = useState<DialogueNode | null>(null)
   const [currentMessageId, setCurrentMessageId] = useState<number | null>(messageId || null)
-  const [simulationGoal] = useState<string>("Reach a favorable settlement")
   const [error, setError] = useState<string | null>(null)
 
   // State management - EXISTING (keep these)
@@ -144,6 +144,7 @@ function SimulationPage() {
     ? currentNode.children.map(child => ({
         id: child.id,
         text: child.statement,
+        party: child.party,
       }))
     : []
 
@@ -299,23 +300,19 @@ const handleStopRecording = async () => {
         "user"
       )
 
-      // Step 4: Call continue-conversation to get AI responses
-      const response = await continueConversation(caseId, simulationId, simulationGoal)
+      // Step 4: Call continue-conversation to generate AI responses
+      await continueConversation(caseId, newMessage.id, simulationId, false)
 
-      // Step 5: Merge new branches into tree at the custom message
-      if (response.scenarios_tree && response.scenarios_tree.responses) {
-        // The scenarios_tree represents the parent (our custom message)
-        // Its responses are the AI's response options
-        const parentNode = {
-          ...response.scenarios_tree,
-          responses: response.scenarios_tree.responses || []
-        }
+      // Step 5: Reload the full tree from backend to get the newly generated subtree
+      const updatedMessages = await loadSimulationTree(simulationId)
+      const freshTree = buildDialogueTreeFromMessages(updatedMessages)
 
-        updatedTree = mergeBranchesIntoTree(updatedTree, String(newMessage.id), parentNode)
+      if (!freshTree) {
+        throw new Error("Failed to rebuild dialogue tree after generation")
       }
 
-      // Step 6: Update state
-      setFullTree(updatedTree)
+      // Step 6: Update state with fresh tree
+      setFullTree(freshTree)
       setCustomResponse("")
 
       // Step 7: Navigate to the new custom message node
@@ -348,8 +345,6 @@ const handleStopRecording = async () => {
   const handleSelectPregeneratedResponse = async (responseId: string) => {
     if (isGeneratingResponses || !fullTree) return
 
-    setIsGeneratingResponses(true)
-
     try {
       const selectedNode = findNodeInTree(fullTree, responseId)
       if (!selectedNode) {
@@ -361,24 +356,11 @@ const handleStopRecording = async () => {
       // Step 1: Mark message as selected in backend
       await selectMessage(messageIdNum)
 
-      // Step 2: Update local tree selection
-      let updatedTree = updateSelectedPath(fullTree, responseId)
-
-      // Step 3: Check if this is a leaf node
-      if (isLeafNode(selectedNode)) {
-        // Leaf node - need to generate new responses
-        const response = await continueConversation(caseId, simulationId, simulationGoal)
-
-        // Merge new branches
-        if (response.scenarios_tree && response.scenarios_tree.responses) {
-          updatedTree = mergeBranchesIntoTree(updatedTree, responseId, response.scenarios_tree)
-        }
-      }
-
-      // Step 4: Update state
+      // Step 2: Update local tree selection immediately
+      const updatedTree = updateSelectedPath(fullTree, responseId)
       setFullTree(updatedTree)
 
-      // Step 5: Navigate to selected node
+      // Step 3: Navigate to selected node immediately (updates UI)
       navigate({
         to: "/scenario",
         search: {
@@ -387,6 +369,34 @@ const handleStopRecording = async () => {
           messageId: messageIdNum,
         },
       })
+
+      // Step 4: Check if this is a leaf node and generate responses
+      if (isLeafNode(selectedNode)) {
+        // Set loading state after UI update
+        setIsGeneratingResponses(true)
+
+        try {
+          // Leaf node - need to generate new responses
+          await continueConversation(caseId, messageIdNum, simulationId, false)
+
+          // Reload the full tree from backend to get the newly generated subtree
+          const updatedMessages = await loadSimulationTree(simulationId)
+          const freshTree = buildDialogueTreeFromMessages(updatedMessages)
+
+          if (freshTree) {
+            setFullTree(freshTree)
+          }
+        } catch (genErr: any) {
+          console.error("Error generating new responses:", genErr)
+          toaster.create({
+            title: "Failed to generate responses",
+            description: genErr.message,
+            type: "error",
+          })
+        } finally {
+          setIsGeneratingResponses(false)
+        }
+      }
     } catch (err: any) {
       console.error("Error selecting response:", err)
       toaster.create({
@@ -394,7 +404,6 @@ const handleStopRecording = async () => {
         description: err.message,
         type: "error",
       })
-    } finally {
       setIsGeneratingResponses(false)
     }
   }
@@ -485,7 +494,7 @@ const handleStopRecording = async () => {
       <Container maxW="1200px">
         {/* Simulation Title */}
         <Heading fontSize="3xl" fontWeight="bold" color="#3A3A3A" mb={6}>
-          Scenario Explorer
+          Scenario Explorer [PUT SIMULATION TITLE HERE]
         </Heading>
 
         <HStack alignItems="stretch" gap={6}>
@@ -691,18 +700,22 @@ const handleStopRecording = async () => {
                 )}
 
                 {/* Response Options Section */}
-                {!isGeneratingResponses && (
-                  <>
-                    <HStack gap={2} align="center" mb={3}>
-                      <Heading
-                        fontSize="lg"
-                        fontWeight="bold"
-                        color="#3A3A3A"
-                        textTransform="uppercase"
-                      >
-                        Next Statement
-                      </Heading>
-                      {/* Regenerate button */}
+                <>
+                  <HStack gap={1} align="center" mb={3}>
+                    <Heading
+                      fontSize="lg"
+                      fontWeight="bold"
+                      color="#3A3A3A"
+                      textTransform="uppercase"
+                    >
+                      Next Statement
+                    </Heading>
+                    {/* Spinner next to header when generating */}
+                    {isGeneratingResponses && (
+                      <Spinner size="sm" color="#3A3A3A" />
+                    )}
+                    {/* Regenerate button */}
+                    {!isGeneratingResponses && (
                       <Button
                         variant="ghost"
                         size="xs"
@@ -718,8 +731,20 @@ const handleStopRecording = async () => {
                       >
                         <Icon as={FiRefreshCw} boxSize={4} />
                       </Button>
-                    </HStack>
+                    )}
+                  </HStack>
 
+                  {/* Loading state while generating responses */}
+                  {isGeneratingResponses && (
+                    <VStack gap={4} alignItems="stretch">
+                      <Skeleton height="80px" borderRadius="md" />
+                      <Skeleton height="80px" borderRadius="md" />
+                      <Skeleton height="80px" borderRadius="md" />
+                    </VStack>
+                  )}
+
+                  {/* Response options - show when not generating */}
+                  {!isGeneratingResponses && (
                     <VStack gap={4} alignItems="stretch">
                       {/* Pre-generated response options (children of current node) */}
                       {responseOptions.map((option) => (
@@ -727,10 +752,13 @@ const handleStopRecording = async () => {
                           key={option.id}
                           bg="white"
                           cursor="pointer"
-                          _hover={{ shadow: "md", borderColor: "slate.600" }}
+                          _hover={{
+                            shadow: "md",
+                            borderColor: option.party === "A" ? "slate.600" : "salmon.600"
+                          }}
                           transition="all 0.2s"
                           border="2px solid"
-                          borderColor="slate.500"
+                          borderColor={option.party === "A" ? "slate.500" : "salmon.500"}
                           onClick={() =>
                             handleSelectPregeneratedResponse(option.id)
                           }
@@ -751,86 +779,46 @@ const handleStopRecording = async () => {
                               Write Your Own
                             </Text>
 
-                    <VStack align="stretch" gap={3} width="100%">
-                      <Textarea
-                        value={customResponse}
-                        onChange={(e) => setCustomResponse(e.target.value)}
-                        placeholder="Type your response here..."
-                        rows={4}
-                        resize="vertical"
-                        width="100%" // make textarea full width
-                      />
+                            <VStack align="stretch" gap={3} width="100%">
+                              <Textarea
+                                value={customResponse}
+                                onChange={(e) => setCustomResponse(e.target.value)}
+                                placeholder="Type your response here..."
+                                rows={4}
+                                resize="vertical"
+                                width="100%" // make textarea full width
+                              />
 
-                      <HStack justify="space-between" width="100%">
-                        <Button
-                          size="sm"
-                          bg="slate.500"
-                          color="white"
-                          _hover={{ bg: "slate.600" }}
-                          onClick={handleSubmitCustomResponse}
-                          disabled={!customResponse.trim()}
-                        >
-                          Submit
-                        </Button>
+                              <HStack justify="space-between" width="100%">
+                                <Button
+                                  size="sm"
+                                  bg="slate.500"
+                                  color="white"
+                                  _hover={{ bg: "slate.600" }}
+                                  onClick={handleSubmitCustomResponse}
+                                  disabled={!customResponse.trim()}
+                                >
+                                  Submit
+                                </Button>
 
-                        <Button
-                          size="sm"
-                          colorScheme={isRecording ? "red" : "gray"}
-                          onClick={() => {
-                            if (isRecording) handleStopRecording()
-                            else handleStartRecording()
-                          }}
-                        >
-                          {isRecording ? "Stop Recording" : "🎤 Record"}
-                        </Button>
-                      </HStack>
-                    </VStack>
-
-
-
-
-                            {/*<Textarea*/}
-                            {/*  value={customResponse}*/}
-                            {/*  onChange={(e) => setCustomResponse(e.target.value)}*/}
-                            {/*  placeholder="Type your response here..."*/}
-                            {/*  rows={4}*/}
-                            {/*  resize="vertical"*/}
-                            {/*/>*/}
-                            {/*<div flexDirection="row" alignItems="">*/}
-                            {/* <Button*/}
-                            {/*  size="sm"*/}
-                            {/*  colorScheme={isRecording ? "red" : "gray"}*/}
-                            {/*  onClick={() => {*/}
-                            {/*    if (isRecording) handleStopRecording()*/}
-                            {/*    else handleStartRecording()*/}
-                            {/*  }}*/}
-                            {/*>*/}
-                            {/*  {isRecording ? "Stop Recording" : "🎤 Record"}*/}
-                            {/*</Button>*/}
-                            {/*<Button*/}
-                            {/*  size="sm"*/}
-                            {/*  bg="slate.500"*/}
-                            {/*  color="white"*/}
-                            {/*  _hover={{ bg: "slate.600" }}*/}
-                            {/*  onClick={handleSubmitCustomResponse}*/}
-                            {/*  disabled={!customResponse.trim()}*/}
-                            {/*>*/}
-                            {/*  Submit*/}
-                            {/*</Button>*/}
+                                <Button
+                                  size="sm"
+                                  colorScheme={isRecording ? "red" : "gray"}
+                                  onClick={() => {
+                                    if (isRecording) handleStopRecording()
+                                    else handleStartRecording()
+                                  }}
+                                >
+                                  {isRecording ? "🎤 Stop Recording" : "🎤 Record"}
+                                </Button>
+                              </HStack>
+                            </VStack>
                           </VStack>
                         </Card.Body>
                       </Card.Root>
                     </VStack>
-                  </>
-                )}
-
-                {/* Loading state while generating responses */}
-                {isGeneratingResponses && (
-                  <Box textAlign="center" py={8}>
-                    <Spinner size="lg" color="#3A3A3A" mb={4} />
-                    <Text color="#666">Generating responses...</Text>
-                  </Box>
-                )}
+                  )}
+                </>
                   </>
                 ) : (
                   <>

@@ -15,6 +15,7 @@ export interface DialogueNode {
 export interface ResponseOption {
   id: string
   text: string
+  party: Party
 }
 
 // Backend Message structure (from API)

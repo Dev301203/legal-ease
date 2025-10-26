@@ -9,20 +9,29 @@ import type {
 
 /**
  * Map backend role to Party A or B
- * user/assistant are the main conversation participants
- * system messages can be treated as Party A for display purposes
+ * Backend now directly returns "A" or "B" as roles
+ * Also supports legacy formats for backward compatibility
  */
 export function getPartyFromRole(role: string): Party {
-  const normalizedRole = role.toLowerCase()
+  const normalizedRole = role.toUpperCase().trim()
 
-  if (normalizedRole === "user" || normalizedRole === "party a") {
+  // Direct A/B matching (primary format from backend)
+  if (normalizedRole === "A") {
     return "A"
-  } else if (normalizedRole === "assistant" || normalizedRole === "party b") {
+  } else if (normalizedRole === "B") {
     return "B"
-  } else {
-    // Default system messages to Party A
-    return "A"
   }
+
+  // Legacy format support
+  const lowerRole = role.toLowerCase()
+  if (lowerRole === "user" || lowerRole === "party a") {
+    return "A"
+  } else if (lowerRole === "assistant" || lowerRole === "party b") {
+    return "B"
+  }
+
+  // Default to Party A for unknown roles
+  return "A"
 }
 
 /**

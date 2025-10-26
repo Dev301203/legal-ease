@@ -33,15 +33,17 @@ export async function loadSimulationTree(
 /**
  * Continue the conversation by generating new response options
  * @param caseId - The case ID
- * @param simulationId - The simulation/tree ID (null for new simulations)
- * @param simulationGoal - The goal/brief for the simulation
+ * @param messageId - The message ID of the last selected node (leaf node)
+ * @param treeId - The simulation/tree ID
+ * @param refresh - Whether to regenerate existing children (default: false)
  * @returns TreeResponse with new branches
  * @throws Error if case not found or generation fails
  */
 export async function continueConversation(
   caseId: number,
-  simulationId: number | null,
-  simulationGoal: string
+  messageId: number,
+  treeId: number,
+  refresh: boolean = false
 ): Promise<TreeResponse> {
   const response = await fetch(`${API_BASE}/continue-conversation`, {
     method: "POST",
@@ -50,8 +52,9 @@ export async function continueConversation(
     },
     body: JSON.stringify({
       case_id: caseId,
-      tree_id: simulationId,
-      simulation_goal: simulationGoal,
+      message_id: messageId,
+      tree_id: treeId,
+      refresh,
     }),
   })
 

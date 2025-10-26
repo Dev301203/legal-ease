@@ -381,8 +381,24 @@ useEffect(() => {
       const conversationData = await conversationResponse.json()
       console.log("Conversation started:", conversationData)
 
+      // Fetch the tree messages to get the root message ID
+      const treeResponse = await fetch(`http://localhost:8000/api/v1/trees/${newSimulationId}/messages`)
+      if (!treeResponse.ok) {
+        throw new Error("Failed to fetch tree messages")
+      }
+
+      const treeMessages = await treeResponse.json()
+      const rootMessageId = treeMessages[0]?.id // Get the root message ID
+
       setIsNewSimulationOpen(false)
-      navigate({ to: "/scenario", search: { id: newSimulationId } })
+      navigate({
+        to: "/scenario",
+        search: {
+          caseId: Number(id),
+          simulationId: Number(newSimulationId),
+          messageId: rootMessageId
+        }
+      })
     } catch (err) {
       console.error("Error generating simulation:", err)
     }
