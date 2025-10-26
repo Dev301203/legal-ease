@@ -632,16 +632,6 @@ useEffect(() => {
             <Heading fontSize="2xl" color="#3A3A3A">
               Simulations
             </Heading>
-            <Button
-              size="sm"
-              variant="outline"
-              color="darkGrey.text"
-              borderColor="darkGrey.text"
-              _hover={{ bg: "gray.100" }}
-              onClick={handleNewSimulation}
-            >
-              <FiPlus />
-            </Button>
           </HStack>
 
           <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={6} width="100%">
