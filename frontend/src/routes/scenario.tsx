@@ -7,15 +7,18 @@ import {
   Container,
   Heading,
   HStack,
+  Icon,
   Input,
   Spinner,
+  Switch,
+  Tabs,
   Text,
   Textarea,
   VStack,
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { toaster } from "@/components/ui/toaster"
-import { FiSave, FiMic, FiEye, FiPlay } from "react-icons/fi"
+import { FiSave, FiMic, FiPlay, FiList, FiMap, FiGitBranch, FiRefreshCw } from "react-icons/fi"
 
 interface ScenarioSearchParams {
   id?: string
@@ -135,6 +138,29 @@ const createInitialDialogueTree = (nodeId: string): DialogueNode => ({
   children: [],
 })
 
+// Mock bookmarked scenarios
+interface BookmarkedScenario {
+  id: string
+  name: string
+  nodeId: string
+  createdAt: Date
+}
+
+const mockBookmarkedScenarios: BookmarkedScenario[] = [
+  {
+    id: "bm1",
+    name: "Opening Move: Mediation Start",
+    nodeId: "st1-root",
+    createdAt: new Date("2025-10-20"),
+  },
+  {
+    id: "bm2",
+    name: "Settlement Negotiation Start",
+    nodeId: "st2-root",
+    createdAt: new Date("2025-10-21"),
+  },
+]
+
 // Mock LLM responses for different user inputs
 const getMockResponses = (userInput: string): ResponseOption[] => {
   // For demonstration, return contextual responses
@@ -208,8 +234,9 @@ function SimulationPage() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   const [scenarioName, setScenarioName] = useState("")
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false)
-  const [isVisualizationOpen, setIsVisualizationOpen] = useState(false)
   const [narrationUrl, setNarrationUrl] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<string>("current")
+  const [viewMode, setViewMode] = useState<"conversation" | "tree">("conversation")
 
   // Mock: Extract simulation ID from node ID
   // In production, the backend would return this with the node data
@@ -451,17 +478,6 @@ function SimulationPage() {
     }
   }
 
-  // Handle visualize
-  const handleVisualize = () => {
-    setIsVisualizationOpen(true)
-    toaster.create({
-      title: "Visualization opened",
-      description: "Dialogue tree visualization is now available.",
-      type: "info",
-      duration: 2000,
-    })
-  }
-
   const currentNode = getCurrentNode()
   const conversationHistory = getConversationHistory()
   const currentTurnParty = getCurrentTurnParty()
@@ -485,154 +501,212 @@ function SimulationPage() {
   ]
 
   return (
-    <Box minHeight="100vh" bg="#F4ECD8">
-      <HStack alignItems="stretch" gap={0} minHeight="100vh">
-        {/* Left Sidebar - Conversation History */}
-        <Box
-          width="320px"
-          bg="white"
-          borderRight="1px solid"
-          borderColor="gray.200"
-          display="flex"
-          flexDirection="column"
-          position="sticky"
-          top={0}
-          height="100vh"
-        >
+    <Box minHeight="100vh" bg="#F4ECD8" py={8}>
+      <Container maxW="1200px">
+        {/* Simulation Title */}
+        <Heading fontSize="3xl" fontWeight="bold" color="#3A3A3A" mb={6}>
+          {simulation.headline}
+        </Heading>
+
+        <HStack alignItems="stretch" gap={6}>
+          {/* Left Column - Conversation History */}
+          <Box
+            width="280px"
+            bg="white"
+            borderRadius="md"
+            shadow="sm"
+            display="flex"
+            flexDirection="column"
+            // minHeight="calc(100vh - 120px)"
+            maxHeight="calc(100vh - 120px)"
+          >
           {/* Sidebar Header */}
           <Box p={4} borderBottom="1px solid" borderColor="gray.200">
-            <Heading fontSize="lg" fontWeight="semibold" color="#3A3A3A">
-              Current Scenario
+            <Heading fontSize="xl" fontWeight="semibold" color="#3A3A3A">
+              Scenarios
             </Heading>
           </Box>
 
-          {/* Scrollable History */}
-          <Box flex={1} overflowY="auto" p={4}>
-            <VStack gap={2} alignItems="stretch">
-              {conversationHistory.map((node, index) => (
-                <Box
-                  key={node.id}
-                  p={3}
-                  bg="white"
-                  border="2px solid"
-                  borderColor={node.party === "A" ? "slate.500" : "salmon.500"}
-                  borderRadius="md"
-                  cursor="pointer"
-                  opacity={index === conversationHistory.length - 1 ? 1 : 0.7}
-                  _hover={{
-                    opacity: 1,
-                    shadow: "sm",
-                    borderColor: node.party === "A" ? "slate.600" : "salmon.600",
-                  }}
-                  onClick={() => handleNavigateToNode(node.id)}
-                  transition="all 0.2s"
-                >
-                  <Text fontSize="xs" fontWeight="bold" color="#3A3A3A" mb={1}>
-                    {node.party === "A" ? "Party A" : "Party B"}
-                  </Text>
-                  <Text fontSize="sm" color="#3A3A3A" lineHeight="1.4">
-                    {node.statement}
-                  </Text>
-                </Box>
-              ))}
-            </VStack>
-          </Box>
+          {/* Tabs */}
+          <Tabs.Root
+            value={activeTab}
+            onValueChange={(e) => setActiveTab(e.value)}
+            flex={1}
+            display="flex"
+            flexDirection="column"
+          >
+            <Tabs.List px={4} pt={2}>
+              <Tabs.Trigger value="current" fontWeight="semibold">Current</Tabs.Trigger>
+              <Tabs.Trigger value="bookmarked" fontWeight="semibold">Bookmarked</Tabs.Trigger>
+            </Tabs.List>
 
-          {/* Sidebar Buttons */}
-          <Box p={4} borderTop="1px solid" borderColor="gray.200">
-            <VStack gap={2} width="100%">
-              <Button
-                width="100%"
-                variant="outline"
-                size="sm"
-                color="darkGrey.text"
-                borderColor="darkGrey.text"
-                _hover={{ bg: "gray.100" }}
-                onClick={handleVisualize}
-              >
-                <FiEye />
-                Visualize
-              </Button>
-              <Button
-                width="100%"
-                variant="outline"
-                size="sm"
-                color="darkGrey.text"
-                borderColor="darkGrey.text"
-                _hover={{ bg: "gray.100" }}
-                onClick={
-                  narrationUrl ? handlePlayNarration : handleGenerateVoiceover
-                }
-                loading={isGeneratingVoiceover}
-                loadingText="Generating..."
-              >
-                {narrationUrl ? <FiPlay /> : <FiMic />}
-                {narrationUrl ? "Play" : "Generate Narration"}
-              </Button>
-              <Button
-                width="100%"
-                variant="outline"
-                size="sm"
-                color="darkGrey.text"
-                borderColor="darkGrey.text"
-                _hover={{ bg: "gray.100" }}
-                onClick={() => setIsSaveModalOpen(true)}
-              >
-                <FiSave />
-                Bookmark
-              </Button>
-            </VStack>
-          </Box>
+            {/* Current Tab - Conversation History */}
+            <Tabs.Content value="current" flex={1} overflowY="auto" p={4}>
+              <VStack gap={2} alignItems="stretch">
+                {conversationHistory.map((node, index) => (
+                  <Box
+                    key={node.id}
+                    p={3}
+                    bg="white"
+                    border="2px solid"
+                    borderColor={node.party === "A" ? "slate.500" : "salmon.500"}
+                    borderRadius="md"
+                    cursor="pointer"
+                    opacity={index === conversationHistory.length - 1 ? 1 : 0.7}
+                    _hover={{
+                      opacity: 1,
+                      shadow: "sm",
+                      borderColor: node.party === "A" ? "slate.600" : "salmon.600",
+                    }}
+                    onClick={() => handleNavigateToNode(node.id)}
+                    transition="all 0.2s"
+                  >
+                    <Text fontSize="xs" fontWeight="bold" color="#3A3A3A" mb={1}>
+                      {node.party === "A" ? "Party A" : "Party B"}
+                    </Text>
+                    <Text fontSize="sm" color="#3A3A3A" lineHeight="1.4">
+                      {node.statement}
+                    </Text>
+                  </Box>
+                ))}
+              </VStack>
+            </Tabs.Content>
+
+            {/* Bookmarked Tab - Saved Scenarios */}
+            <Tabs.Content value="bookmarked" flex={1} overflowY="auto" p={4}>
+              <VStack gap={3} alignItems="stretch">
+                {mockBookmarkedScenarios.map((bookmark) => (
+                  <Card.Root
+                    key={bookmark.id}
+                    bg="white"
+                    cursor="pointer"
+                    _hover={{ shadow: "md" }}
+                    transition="all 0.2s"
+                    onClick={() =>
+                      navigate({ to: "/scenario", search: { id: bookmark.nodeId } })
+                    }
+                  >
+                    <Card.Body p={3}>
+                      <VStack alignItems="flex-start" gap={2}>
+                        <Text fontSize="sm" fontWeight="semibold" color="#3A3A3A">
+                          {bookmark.name}
+                        </Text>
+                        <Text fontSize="xs" color="#999">
+                          {bookmark.createdAt.toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </Text>
+                      </VStack>
+                    </Card.Body>
+                  </Card.Root>
+                ))}
+              </VStack>
+            </Tabs.Content>
+          </Tabs.Root>
+
+          {/* Sidebar Buttons - Only show in Current tab */}
+          {activeTab === "current" && (
+            <Box p={4} borderTop="1px solid" borderColor="gray.200">
+              <VStack gap={2} width="100%">
+                {/* <Button
+                  width="100%"
+                  variant="outline"
+                  size="sm"
+                  color="darkGrey.text"
+                  borderColor="darkGrey.text"
+                  _hover={{ bg: "gray.100" }}
+                  onClick={() => setViewMode(viewMode === "tree" ? "conversation" : "tree")}
+                >
+                  <FiEye />
+                  {viewMode === "tree" ? "Conversation" : "Tree View"}
+                </Button> */}
+                <Button
+                  width="100%"
+                  variant="outline"
+                  size="sm"
+                  color="darkGrey.text"
+                  borderColor="darkGrey.text"
+                  _hover={{ bg: "gray.100" }}
+                  onClick={
+                    narrationUrl ? handlePlayNarration : handleGenerateVoiceover
+                  }
+                  loading={isGeneratingVoiceover}
+                  loadingText="Generating..."
+                >
+                  {narrationUrl ? <FiPlay /> : <FiMic />}
+                  {narrationUrl ? "Play" : "Generate Narration"}
+                </Button>
+                <Button
+                  width="100%"
+                  variant="outline"
+                  size="sm"
+                  color="darkGrey.text"
+                  borderColor="darkGrey.text"
+                  _hover={{ bg: "gray.100" }}
+                  onClick={() => setIsSaveModalOpen(true)}
+                >
+                  <FiSave />
+                  Bookmark
+                </Button>
+              </VStack>
+            </Box>
+          )}
         </Box>
 
         {/* Main Content Area */}
-        <Box flex={1} p={8}>
-          <Container maxW="900px">
-            {/* Back to Case Button */}
-            <Box mb={4}>
-              <Text
-                as="button"
-                onClick={() =>
-                  navigate({ to: "/case", search: { id: simulation.caseId } })
-                }
-                color="#3A3A3A"
-                fontSize="sm"
-                _hover={{ textDecoration: "underline" }}
-              >
-                ← Back to {simulation.caseTitle}
-              </Text>
-            </Box>
+        <Box flex={1}>
 
-            {/* Simulation Title */}
-            <Heading fontSize="2xl" fontWeight="semibold" color="#3A3A3A" mb={6}>
-              {simulation.headline}
-            </Heading>
-
-            {/* Back Button (if not at root) */}
-            {conversationHistory.length > 1 && (
-              <Box mb={4}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleBackOne}
-                  colorPalette="gray"
-                >
-                  ← Back
-                </Button>
+            {/* View Mode Switch */}
+            <Box
+              bg="white"
+              borderRadius="md"
+              mb={6}
+              shadow="sm"
+            >
+              {/* Explorer Header */}
+              <Box p={4} borderBottom="1px solid" borderColor="gray.200">
+                <Heading fontSize="xl" fontWeight="semibold" color="#3A3A3A">
+                  Scenario Explorer
+                </Heading>
               </Box>
-            )}
+
+              {/* Switch */}
+              <Box p={4}>
+                <Switch.Root
+                  size="lg"
+                  colorPalette="slate"
+                  checked={viewMode === "tree"}
+                  onCheckedChange={(e) => setViewMode(e.checked ? "tree" : "conversation")}
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                    <Switch.Indicator fallback={<Icon as={FiList} color="gray.600" />}>
+                      <Icon as={FiMap} color="slate.600" />
+                    </Switch.Indicator>
+                  </Switch.Control>
+                  <Switch.Label fontWeight="semibold" color="#3A3A3A">
+                    {viewMode === "conversation" ? "Turn-by-Turn" : "Overview"}
+                  </Switch.Label>
+                </Switch.Root>
+              </Box>
+            </Box>
 
             {currentNode && (
               <>
-                <Heading
-                  fontSize="lg"
-                  fontWeight="bold"
-                  color="#3A3A3A"
-                  textTransform="uppercase"
-                  mb={3}
-                >
-                  Last Statement
-                </Heading>
+                {viewMode === "conversation" ? (
+                  <>
+                    <Heading
+                      fontSize="lg"
+                      fontWeight="bold"
+                      color="#3A3A3A"
+                      textTransform="uppercase"
+                      mb={3}
+                    >
+                      Last Statement
+                    </Heading>
 
                 {/* Current Statement */}
                 <Card.Root
@@ -649,47 +723,143 @@ function SimulationPage() {
                     </VStack>
                   </Card.Body>
                 </Card.Root>
-              </>
-            )}
 
-            {/* Loading State */}
-            {isLoading && (
-              <Box textAlign="center" py={8}>
-                <Spinner size="lg" color="slate" mb={4} />
-                <Text fontSize="md" color="#666">
-                  Generating responses...
-                </Text>
-              </Box>
-            )}
+                {/* Loading State */}
+                {isLoading && (
+                  <Box textAlign="center" py={8}>
+                    <Spinner size="lg" color="slate" mb={4} />
+                    <Text fontSize="md" color="#666">
+                      Generating responses...
+                    </Text>
+                  </Box>
+                )}
 
-            {/* Party A's Turn - Show Response Options */}
-            {!isLoading && isPartyATurn && (
-              <>
-                <Heading
-                  fontSize="lg"
-                fontWeight="bold"
-                color="#3A3A3A"
-                textTransform="uppercase"
-                mb={3}
-                >
-                  Next Statement
-                </Heading>
+                {/* Party A's Turn - Show Response Options */}
+                {!isLoading && isPartyATurn && (
+                  <>
+                    <HStack gap={2} align="center" mb={3}>
+                      <Heading
+                        fontSize="lg"
+                        fontWeight="bold"
+                        color="#3A3A3A"
+                        textTransform="uppercase"
+                      >
+                        Next Statement
+                      </Heading>
+                      {/* Regenerate button - TODO: Backend integration needed */}
+                      {/* When clicked, should call API to regenerate dialogue tree with current node as root */}
+                      {/* This will provide new response options based on the last statement */}
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        color="#3A3A3A"
+                        _hover={{ bg: "gray.100" }}
+                        onClick={() => {
+                          // TODO: Implement backend call to regenerate tree
+                          // API endpoint should accept current node ID and return new response options
+                          console.log("Regenerate options for current node")
+                        }}
+                      >
+                        <Icon as={FiRefreshCw} boxSize={4} />
+                      </Button>
+                    </HStack>
 
-                <VStack gap={4} alignItems="stretch">
-                  {/* Pre-generated options (first turn) or no options yet */}
-                  {conversationHistory.length === 1 &&
-                    initialResponseOptions.map((option) => (
+                    <VStack gap={4} alignItems="stretch">
+                      {/* Pre-generated options (first turn) or no options yet */}
+                      {conversationHistory.length === 1 &&
+                        initialResponseOptions.map((option) => (
+                          <Card.Root
+                            key={option.id}
+                            bg="white"
+                            cursor="pointer"
+                            _hover={{ shadow: "md", borderColor: "slate.600" }}
+                            transition="all 0.2s"
+                            border="2px solid"
+                            borderColor="slate.500"
+                            onClick={() =>
+                              handleSelectPregeneratedResponse(option.text)
+                            }
+                          >
+                            <Card.Body>
+                              <Text fontSize="md" color="#3A3A3A" lineHeight="1.6">
+                                {option.text}
+                              </Text>
+                            </Card.Body>
+                          </Card.Root>
+                        ))}
+
+                      {/* Custom Response Card */}
+                      <Card.Root bg="white" border="2px solid" borderColor="slate.500">
+                        <Card.Body>
+                          <VStack alignItems="flex-start" gap={3}>
+                            <Text fontSize="sm" fontWeight="semibold" color="#3A3A3A">
+                              Write Your Own
+                            </Text>
+                            <Textarea
+                              value={customResponse}
+                              onChange={(e) => setCustomResponse(e.target.value)}
+                              placeholder="Type your response here..."
+                              rows={4}
+                              resize="vertical"
+                            />
+                            <Button
+                              size="sm"
+                              bg="slate.500"
+                              color="white"
+                              _hover={{ bg: "slate.600" }}
+                              onClick={handleSubmitCustomResponse}
+                              disabled={!customResponse.trim()}
+                            >
+                              Submit
+                            </Button>
+                          </VStack>
+                        </Card.Body>
+                      </Card.Root>
+                    </VStack>
+                  </>
+                )}
+
+                {/* Party B's Turn - Show Opposing Counsel's Response Options */}
+                {!isLoading && isPartyBTurn && pendingResponseOptions.length > 0 && (
+                  <>
+                    <HStack gap={1} align="center" mb={3}>
+                      <Heading
+                        fontSize="lg"
+                        fontWeight="bold"
+                        color="#3A3A3A"
+                        textTransform="uppercase"
+                      >
+                        Next Statement
+                      </Heading>
+                      {/* Regenerate button - TODO: Backend integration needed */}
+                      {/* When clicked, should call API to regenerate dialogue tree with current node as root */}
+                      {/* This will provide new response options based on the last statement */}
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        color="#3A3A3A"
+                        _hover={{ bg: "gray.100" }}
+                        onClick={() => {
+                          // TODO: Implement backend call to regenerate tree
+                          // API endpoint should accept current node ID and return new response options
+                          console.log("Regenerate options for current node")
+                        }}
+                      >
+                        <Icon as={FiRefreshCw} boxSize={4} />
+                      </Button>
+                    </HStack>
+
+                    <VStack gap={4} alignItems="stretch">
+                      {pendingResponseOptions.map((option) => (
                         <Card.Root
                           key={option.id}
                           bg="white"
                           cursor="pointer"
-                          _hover={{ shadow: "md", borderColor: "slate.600" }}
+                          _hover={{ shadow: "md", borderColor: "salmon.600" }}
                           transition="all 0.2s"
                           border="2px solid"
-                          borderColor="slate.500"
-                          onClick={() =>
-                            handleSelectPregeneratedResponse(option.text)
-                          }
+                          borderColor="salmon.500"
+                          onClick={() => handleSelectOpposingResponse(option.text)}
                         >
                           <Card.Body>
                             <Text fontSize="md" color="#3A3A3A" lineHeight="1.6">
@@ -697,110 +867,76 @@ function SimulationPage() {
                             </Text>
                           </Card.Body>
                         </Card.Root>
-                    ))}
+                      ))}
 
-                  {/* Custom Response Card */}
-                  <Card.Root bg="white" border="2px solid" borderColor="slate.500">
-                    <Card.Body>
-                      <VStack alignItems="flex-start" gap={3}>
-                        <Text fontSize="sm" fontWeight="semibold" color="#3A3A3A">
-                          Write Your Own
-                        </Text>
-                        <Textarea
-                          value={customResponse}
-                          onChange={(e) => setCustomResponse(e.target.value)}
-                          placeholder="Type your response here..."
-                          rows={4}
-                          resize="vertical"
-                        />
-                        <Button
-                          size="sm"
-                          bg="slate.500"
-                          color="white"
-                          _hover={{ bg: "slate.600" }}
-                          onClick={handleSubmitCustomResponse}
-                          disabled={!customResponse.trim()}
-                        >
-                          Submit
-                        </Button>
-                      </VStack>
-                    </Card.Body>
-                  </Card.Root>
-                </VStack>
-              </>
-            )}
-
-            {/* Party B's Turn - Show Opposing Counsel's Response Options */}
-            {!isLoading && isPartyBTurn && pendingResponseOptions.length > 0 && (
-              <>
-                <Heading
-                  fontSize="lg"
-                  fontWeight="bold"
-                  color="#3A3A3A"
-                  textTransform="uppercase"
-                  mb={3}
-                >
-                  Next Statement
-                </Heading>
-
-                <VStack gap={4} alignItems="stretch">
-                  {pendingResponseOptions.map((option) => (
-                    <Card.Root
-                      key={option.id}
+                      {/* Custom Response Card for Party B */}
+                      <Card.Root bg="white" border="2px solid" borderColor="salmon.500">
+                        <Card.Body>
+                          <VStack alignItems="flex-start" gap={3}>
+                            <Text fontSize="sm" fontWeight="semibold" color="#3A3A3A">
+                              Write Your Own
+                            </Text>
+                            <Textarea
+                              value={customResponse}
+                              onChange={(e) => setCustomResponse(e.target.value)}
+                              placeholder="Type Party B's response here..."
+                              rows={4}
+                              resize="vertical"
+                            />
+                            <Button
+                              size="sm"
+                              bg="salmon.500"
+                              color="white"
+                              _hover={{ bg: "salmon.600" }}
+                              onClick={() => {
+                                if (customResponse.trim()) {
+                                  handleSelectOpposingResponse(customResponse)
+                                  setCustomResponse("")
+                                }
+                              }}
+                              disabled={!customResponse.trim()}
+                            >
+                              Submit
+                            </Button>
+                          </VStack>
+                        </Card.Body>
+                      </Card.Root>
+                    </VStack>
+                  </>
+                )}
+                  </>
+                ) : (
+                  <>
+                    {/* Tree Visualization View - Placeholder */}
+                    <Box
                       bg="white"
-                      cursor="pointer"
-                      _hover={{ shadow: "md", borderColor: "salmon.600" }}
-                      transition="all 0.2s"
-                      border="2px solid"
-                      borderColor="salmon.500"
-                      onClick={() => handleSelectOpposingResponse(option.text)}
+                      borderRadius="md"
+                      border="2px dashed"
+                      borderColor="gray.300"
+                      p={12}
+                      textAlign="center"
+                      minHeight="500px"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
                     >
-                      <Card.Body>
-                        <Text fontSize="md" color="#3A3A3A" lineHeight="1.6">
-                          {option.text}
+                      <VStack gap={4}>
+                        <Icon as={FiGitBranch} boxSize={16} color="gray.400" />
+                        <Heading fontSize="xl" color="gray.600" fontWeight="medium">
+                          Tree Visualization
+                        </Heading>
+                        <Text fontSize="md" color="gray.500" maxW="400px">
+                          Interactive dialogue tree visualization will be displayed here, showing all conversation paths and branches.
                         </Text>
-                      </Card.Body>
-                    </Card.Root>
-                  ))}
-
-                  {/* Custom Response Card for Party B */}
-                  <Card.Root bg="white" border="2px solid" borderColor="salmon.500">
-                    <Card.Body>
-                      <VStack alignItems="flex-start" gap={3}>
-                        <Text fontSize="sm" fontWeight="semibold" color="#3A3A3A">
-                          Write Your Own
-                        </Text>
-                        <Textarea
-                          value={customResponse}
-                          onChange={(e) => setCustomResponse(e.target.value)}
-                          placeholder="Type Party B's response here..."
-                          rows={4}
-                          resize="vertical"
-                        />
-                        <Button
-                          size="sm"
-                          bg="salmon.500"
-                          color="white"
-                          _hover={{ bg: "salmon.600" }}
-                          onClick={() => {
-                            if (customResponse.trim()) {
-                              handleSelectOpposingResponse(customResponse)
-                              setCustomResponse("")
-                            }
-                          }}
-                          disabled={!customResponse.trim()}
-                        >
-                          Submit
-                        </Button>
                       </VStack>
-                    </Card.Body>
-                  </Card.Root>
-                </VStack>
+                    </Box>
+                  </>
+                )}
               </>
             )}
-          </Container>
         </Box>
       </HStack>
+      </Container>
 
       {/* Save Scenario Modal */}
       <Dialog.Root
