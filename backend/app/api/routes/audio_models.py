@@ -139,16 +139,14 @@ async def summarize_background_helper(data: str, desired_lines: int) -> str:
             model="Qwen3-32B-thinking-Hackathon",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Say a maximum of " + str(desired_lines) + " lines to summarize the following. If you do not need to say much, don't say much. Do not say anything else or think: " + data}
+                {"role": "user", "content": "Say a maximum of " + str(desired_lines) + " lines to summarize the following. Do not say anything else or think: " + data}
+                # {"role": "user", "content": "Say a maximum of " + str(desired_lines) + " lines to summarize the following. If you do not need to say much, don't say much. Do not say anything else or think: " + data}
             ],
-            response_format={"type": "json_object"},
-            max_tokens=128,
+            max_tokens=4096,
             temperature=0.7
         )
 
-        print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa summary: ")
-
-        return json.loads(response.choices[0].message.content)["summary"]
+        return response.choices[0].message.content.split("\n")[4]
     except Exception as e:
         raise Exception(f"Error summarizing: {str(e)}")
 

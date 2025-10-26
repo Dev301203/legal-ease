@@ -370,7 +370,6 @@ async def create_case(
     )
 
     db.add(new_case)
-    print(new_case)
     db.commit()
     db.refresh(new_case)
     
@@ -531,7 +530,6 @@ async def update_case(
         case.summary = ""
     
     session.add(case)
-    print(case)
     session.commit()
     session.refresh(case)
 
