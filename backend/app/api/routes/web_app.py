@@ -575,7 +575,8 @@ def create_bookmark_endpoint(
         return BookmarkResponse(
             id=bookmark.id,
             simulation_id=bookmark.simulation_id,
-            message_id=bookmark.message_id
+            message_id=bookmark.message_id,
+            name=bookmark.name
         )
     except HTTPException:
         raise
@@ -596,7 +597,8 @@ def get_bookmarks_by_simulation_endpoint(
         BookmarkResponse(
             id=bookmark.id,
             simulation_id=bookmark.simulation_id,
-            message_id=bookmark.message_id
+            message_id=bookmark.message_id,
+            name=bookmark.name
         )
         for bookmark in bookmarks
     ]

@@ -42,6 +42,7 @@ class Bookmark(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     simulation_id: int = Field(foreign_key="simulation.id", nullable=False, ondelete="CASCADE")
     message_id: int = Field(foreign_key="message.id", nullable=False, ondelete="CASCADE")
+    name: str = Field(default=None, max_length=255)
 
 class Document(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)

@@ -372,7 +372,8 @@ def create_bookmark(*, session: Session, bookmark_create: BookmarkCreate) -> Boo
     
     bookmark = Bookmark(
         simulation_id=bookmark_create.simulation_id,
-        message_id=bookmark_create.message_id
+        message_id=bookmark_create.message_id,
+        name=bookmark_create.name
     )
     session.add(bookmark)
     session.commit()

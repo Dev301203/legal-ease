@@ -210,3 +210,81 @@ export async function getSimulation(simulationId: number): Promise<{
 
   return await response.json()
 }
+
+/**
+ * Create a new bookmark
+ * @param simulationId - The simulation ID
+ * @param messageId - The message ID to bookmark
+ * @param name - The name for the bookmark
+ * @returns Created bookmark
+ * @throws Error if bookmark creation fails
+ */
+export async function createBookmark(
+  simulationId: number,
+  messageId: number,
+  name: string
+): Promise<{
+  id: number
+  simulation_id: number
+  message_id: number
+  name: string
+}> {
+  const response = await fetch(`${API_BASE}/bookmarks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      simulation_id: simulationId,
+      message_id: messageId,
+      name,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to create bookmark: ${response.statusText}`)
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get all bookmarks for a simulation
+ * @param simulationId - The simulation ID
+ * @returns Array of bookmarks
+ * @throws Error if fetch fails
+ */
+export async function getBookmarks(simulationId: number): Promise<
+  Array<{
+    id: number
+    simulation_id: number
+    message_id: number
+    name: string
+  }>
+> {
+  const response = await fetch(`${API_BASE}/bookmarks/${simulationId}`)
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Simulation not found")
+    }
+    throw new Error(`Failed to get bookmarks: ${response.statusText}`)
+  }
+
+  return await response.json()
+}
+
+/**
+ * Delete a bookmark by ID
+ * @param bookmarkId - The bookmark ID to delete
+ * @throws Error if deletion fails
+ */
+export async function deleteBookmark(bookmarkId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/bookmarks/${bookmarkId}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete bookmark: ${response.statusText}`)
+  }
+}

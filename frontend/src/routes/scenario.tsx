@@ -20,13 +20,16 @@ import {
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { toaster } from "@/components/ui/toaster"
-import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw } from "react-icons/fi"
+import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw, FiTrash2 } from "react-icons/fi"
 import type { DialogueNode, ResponseOption } from "@/types/scenario"
 import {
   loadSimulationTree,
   continueConversation,
   createCustomMessage,
   getSimulation,
+  createBookmark,
+  getBookmarks,
+  deleteBookmark,
 } from "@/services/scenarioService"
 import {
   buildDialogueTreeFromMessages,
@@ -78,6 +81,12 @@ function SimulationPage() {
   const [narrationUrl] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string>("current")
   const [viewMode, setViewMode] = useState<"conversation" | "tree">("conversation")
+  const [bookmarks, setBookmarks] = useState<Array<{
+    id: number
+    simulation_id: number
+    message_id: number
+    name: string
+  }>>([])
 
   const [isRecording, setIsRecording] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
@@ -90,14 +99,18 @@ function SimulationPage() {
       setError(null)
 
       try {
-        // Load simulation details and message tree in parallel
-        const [simulation, messages] = await Promise.all([
+        // Load simulation details, message tree, and bookmarks in parallel
+        const [simulation, messages, bookmarksData] = await Promise.all([
           getSimulation(simulationId),
-          loadSimulationTree(simulationId)
+          loadSimulationTree(simulationId),
+          getBookmarks(simulationId).catch(() => []) // Ignore errors, default to empty array
         ])
 
         // Set simulation title
         setSimulationTitle(simulation.headline)
+        
+        // Set bookmarks
+        setBookmarks(bookmarksData)
 
         if (!messages || messages.length === 0) {
           setError("No messages found for this simulation")
@@ -359,14 +372,11 @@ const handleStopRecording = async () => {
       const messageIdNum = Number(responseId)
       const isLeaf = isLeafNode(selectedNode)
 
-      // Step 1: Mark message as selected in backend
-      await selectMessage(messageIdNum)
-
-      // Step 2: Update local tree selection
+      // Step 1: Update local tree selection
       const updatedTree = updateSelectedPath(fullTree, responseId)
       setFullTree(updatedTree)
 
-      // Step 3: If it's a leaf node, generate responses first, THEN navigate
+      // Step 2: If it's a leaf node, generate responses first, THEN navigate
       if (isLeaf) {
         setIsGeneratingResponses(true)
         setCurrentMessageId(messageIdNum) // Update current message ID for the UI
@@ -394,7 +404,7 @@ const handleStopRecording = async () => {
         }
       }
 
-      // Step 4: Navigate to selected node (after generation for leaf nodes)
+      // Step 3: Navigate to selected node (after generation for leaf nodes)
       navigate({
         to: "/scenario",
         search: {
@@ -428,18 +438,84 @@ const handleStopRecording = async () => {
   }
 
   // Handle save scenario
-  const handleSaveScenario = () => {
-    if (!scenarioName.trim()) return
+  const handleSaveScenario = async () => {
+    if (!scenarioName.trim() || !currentMessageId || !simulationId) return
 
-    toaster.create({
-      title: "Scenario saved",
-      description: `"${scenarioName}" has been saved successfully.`,
-      type: "success",
-      duration: 3000,
-    })
+    try {
+      await createBookmark(simulationId, currentMessageId, scenarioName)
 
-    setIsSaveModalOpen(false)
-    setScenarioName("")
+      // Refresh bookmarks list
+      const updatedBookmarks = await getBookmarks(simulationId)
+      setBookmarks(updatedBookmarks)
+
+      toaster.create({
+        title: "Scenario saved",
+        description: `"${scenarioName}" has been saved successfully.`,
+        type: "success",
+        duration: 3000,
+      })
+
+      setIsSaveModalOpen(false)
+      setScenarioName("")
+    } catch (err: any) {
+      console.error("Error saving bookmark:", err)
+      toaster.create({
+        title: "Failed to save scenario",
+        description: err.message || "An error occurred while saving.",
+        type: "error",
+        duration: 3000,
+      })
+    }
+  }
+
+  // Handle navigate to bookmark
+  const handleNavigateToBookmark = async (bookmark: { message_id: number; name: string }) => {
+    try {
+      // Navigate to the bookmarked message
+      navigate({
+        to: "/scenario",
+        search: {
+          caseId,
+          simulationId,
+          messageId: bookmark.message_id,
+        },
+      })
+      
+      // Switch to current tab to see the conversation
+      setActiveTab("current")
+    } catch (err) {
+      console.error("Error navigating to bookmark:", err)
+      toaster.create({
+        title: "Failed to load bookmark",
+        description: "Could not navigate to the bookmarked scenario.",
+        type: "error",
+      })
+    }
+  }
+
+  // Handle delete bookmark
+  const handleDeleteBookmark = async (bookmarkId: number) => {
+    try {
+      await deleteBookmark(bookmarkId)
+      
+      // Refresh bookmarks list
+      const updatedBookmarks = await getBookmarks(simulationId)
+      setBookmarks(updatedBookmarks)
+      
+      toaster.create({
+        title: "Bookmark deleted",
+        description: "The bookmark has been removed successfully.",
+        type: "success",
+        duration: 2000,
+      })
+    } catch (err: any) {
+      console.error("Error deleting bookmark:", err)
+      toaster.create({
+        title: "Failed to delete bookmark",
+        description: err.message || "An error occurred while deleting.",
+        type: "error",
+      })
+    }
   }
 
   // Handle generate voiceover
@@ -614,9 +690,46 @@ const handleStopRecording = async () => {
                 <ScrollArea.Viewport>
                   <ScrollArea.Content p={4} paddingEnd="3" textStyle="sm">
                     <VStack gap={3} alignItems="stretch">
-                      <Text fontSize="sm" color="#999" textAlign="center" py={4}>
-                        Bookmarking feature coming soon
-                      </Text>
+                      {bookmarks.length === 0 ? (
+                        <Text fontSize="sm" color="#999" textAlign="center" py={4}>
+                          No bookmarks yet. Create one by clicking "Bookmark" below.
+                        </Text>
+                      ) : (
+                        bookmarks.map((bookmark) => (
+                          <Box
+                            key={bookmark.id}
+                            p={3}
+                            bg="white"
+                            border="1px solid"
+                            borderColor="gray.300"
+                            borderRadius="md"
+                            _hover={{
+                              borderColor: "slate.500",
+                              shadow: "sm",
+                            }}
+                          >
+                            <HStack justify="space-between" align="start" mb={2}>
+                              <Text
+                                fontSize="sm"
+                                fontWeight="semibold"
+                                color="#3A3A3A"
+                                cursor="pointer"
+                                onClick={() => handleNavigateToBookmark(bookmark)}
+                              >
+                                {bookmark.name}
+                              </Text>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                colorScheme="red"
+                                onClick={() => handleDeleteBookmark(bookmark.id)}
+                              >
+                                <Icon as={FiTrash2} />
+                              </Button>
+                            </HStack>
+                          </Box>
+                        ))
+                      )}
                     </VStack>
                   </ScrollArea.Content>
                 </ScrollArea.Viewport>

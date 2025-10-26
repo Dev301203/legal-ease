@@ -91,9 +91,11 @@ class SimulationResponse(BaseModel):
 class BookmarkCreate(BaseModel):
     simulation_id: int
     message_id: int
+    name: str
 
 
 class BookmarkResponse(BaseModel):
     id: int
     simulation_id: int
     message_id: int
+    name: str
