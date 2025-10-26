@@ -6,7 +6,8 @@ from sqlmodel import Session, select
 
 from app.core.security import get_password_hash, verify_password
 from app.models import Item, ItemCreate, User, UserCreate, UserUpdate, Case, \
-    Message
+    Message, Simulation
+from app.schemas import SimulationCreate
 from app.schemas import messages_to_conversation
 from sqlmodel import Session, select, delete
 from typing import List, Optional
@@ -162,7 +163,34 @@ def get_selected_messages_between(
     return messages
 
 
+def delete_messages_including_children(session: Session, message_id: int) -> bool:
+    """
+    Delete all messages in the same tree that include the given message.
+    Returns True if successful, False otherwise.
+    """
 
+    # Get the target message
+    target = session.get(Message, message_id)
+    if not target:
+        raise ValueError(f"Message with id={message_id} not found")
+
+    # Get all direct children
+    children_stmt = select(Message).where(Message.parent_id == message_id)
+    children = session.exec(children_stmt).all()
+
+    # Delete all messages in this tree with parent_id == message_id recursively
+    for child in children:
+        delete_messages_including_children(session, child.id)
+
+    # Delete the target message
+    session.delete(target)
+    try:
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        return False
+
+    return True
 
 
 def delete_messages_after_children(session: Session, message_id: int) -> int:
@@ -256,4 +284,22 @@ def update_message_selected(db: Session, message_id: int) -> Message:
     db.commit()
     db.refresh(message)
     return message
+
+
+def create_simulation(*, session: Session, simulation_create: SimulationCreate) -> Simulation:
+    """Create a new simulation."""
+    # Check if case exists
+    case = session.get(Case, simulation_create.case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case with id {simulation_create.case_id} not found")
+    
+    simulation = Simulation(
+        headline=simulation_create.headline,
+        brief=simulation_create.brief,
+        case_id=simulation_create.case_id
+    )
+    session.add(simulation)
+    session.commit()
+    session.refresh(simulation)
+    return simulation
 

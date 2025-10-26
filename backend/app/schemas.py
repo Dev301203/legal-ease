@@ -72,3 +72,17 @@ class CaseWithTreeCount(BaseModel):
     summary: str
     last_modified: datetime
     scenario_count: int
+
+
+class SimulationCreate(BaseModel):
+    headline: str
+    brief: str
+    case_id: int
+
+
+class SimulationResponse(BaseModel):
+    id: int
+    headline: str
+    brief: str
+    created_at: datetime
+    case_id: int
