@@ -502,6 +502,27 @@ def create_simulation_endpoint(
         raise HTTPException(status_code=500, detail=f"Error creating simulation: {str(e)}")
 
 
+@router.get("/simulations/{simulation_id}", response_model=SimulationResponse)
+def get_simulation_endpoint(
+    simulation_id: int,
+    db: Session = Depends(get_session)
+):
+    """
+    Get simulation details by ID, including headline (title), brief, created_at, and case_id.
+    """
+    simulation = db.get(Simulation, simulation_id)
+    if not simulation:
+        raise HTTPException(status_code=404, detail=f"Simulation with id {simulation_id} not found")
+    
+    return SimulationResponse(
+        id=simulation.id,
+        headline=simulation.headline,
+        brief=simulation.brief,
+        created_at=simulation.created_at,
+        case_id=simulation.case_id
+    )
+
+
 @router.post("/bookmarks", response_model=BookmarkResponse)
 def create_bookmark_endpoint(
     bookmark_data: BookmarkCreate,
