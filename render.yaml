@@ -69,6 +69,8 @@ services:
         sync: false
       - key: BOSON_API_KEY
         sync: false
+      - key: USERNAME
+        sync: false
       - key: PROJECT_NAME
         value: Legal-ease
 
