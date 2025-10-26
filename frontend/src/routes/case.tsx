@@ -67,6 +67,7 @@ function CasePage() {
   })
 
   const [isNewSimulationOpen, setIsNewSimulationOpen] = useState(false)
+  const [simulationTitle, setSimulationTitle] = useState("")
   const [simulationBrief, setSimulationBrief] = useState("")
 
 // const [recognition, setRecognition] = useState<any>(null)
@@ -325,6 +326,7 @@ useEffect(() => {
   }
 
   const handleNewSimulation = () => {
+    setSimulationTitle("")
     setSimulationBrief("")
     setIsNewSimulationOpen(true)
   }
@@ -334,20 +336,51 @@ useEffect(() => {
 
   const handleCancelBackground = () => { setIsEditBackgroundOpen(false) }
 
-  const handleGenerateSimulation = () => {
-    if (simulationBrief.trim()) {
-      // TODO: Generate simulation via backend
-      // For now, create mock simulation and navigate
-      // Navigate to root node of the new simulation
-      const newSimulationId = `sim-${Date.now()}`
-      const rootNodeId = `${newSimulationId}-root`
+  const handleGenerateSimulation = async () => {
+    if (!simulationTitle.trim() || !simulationBrief.trim() || !caseData) return
+
+    try {
+      // Call backend to create simulation
+      const response = await fetch(`http://localhost:8000/api/v1/simulations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          headline: simulationTitle,
+          brief: simulationBrief,
+          case_id: Number(id),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to create simulation")
+      }
+
+      const data = await response.json()
+      const newSimulationId = data.id
+
       setIsNewSimulationOpen(false)
-      navigate({ to: "/scenario", search: { id: rootNodeId } })
+      setSimulationTitle("")
+      setSimulationBrief("")
+
+      // Navigate to the new simulation
+      navigate({
+        to: "/scenario",
+        search: {
+          caseId: Number(id),
+          simulationId: newSimulationId,
+        },
+      })
+    } catch (error) {
+      console.error("Error creating simulation:", error)
+      alert("Failed to create simulation. Please try again.")
     }
   }
 
   const handleCancelSimulation = () => {
     setIsNewSimulationOpen(false)
+    setSimulationTitle("")
     setSimulationBrief("")
   }
 
@@ -542,7 +575,13 @@ useEffect(() => {
                 _hover={{ shadow: "md" }}
                 transition="all 0.2s"
                 onClick={() =>
-                  navigate({ to: "/scenario", search: { id: `${simulation.id}-root` } })
+                  navigate({
+                    to: "/scenario",
+                    search: {
+                      caseId: Number(id),
+                      simulationId: Number(simulation.id),
+                    },
+                  })
                 }
               >
                 <Card.Body>
@@ -696,36 +735,54 @@ useEffect(() => {
         <Dialog.Positioner>
           <Dialog.Content maxW="600px">
             <Dialog.Header>
-              <Dialog.Title>Simulation Brief</Dialog.Title>
+              <Dialog.Title>New Simulation</Dialog.Title>
+              <Dialog.CloseTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelSimulation}
+                  position="absolute"
+                  top={4}
+                  right={4}
+                >
+                  ✕
+                </Button>
+              </Dialog.CloseTrigger>
             </Dialog.Header>
             <Dialog.Body>
               <VStack gap={4} alignItems="flex-start" width="100%">
                 <Box width="100%">
                   <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
-                    Describe the simulation scenario
+                    Title
+                  </Text>
+                  <Textarea
+                    value={simulationTitle}
+                    onChange={(e) => setSimulationTitle(e.target.value)}
+                    rows={1}
+                    placeholder="Enter a title for this simulation"
+                    autoFocus
+                  />
+                </Box>
+                <Box width="100%">
+                  <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
+                    Brief
                   </Text>
                   <Textarea
                     value={simulationBrief}
                     onChange={(e) => setSimulationBrief(e.target.value)}
                     rows={6}
                     placeholder="Example: Simulate a negotiation about the matrimonial home."
-                    autoFocus
                   />
                 </Box>
               </VStack>
             </Dialog.Body>
             <Dialog.Footer>
-              <Dialog.CloseTrigger asChild>
-                <Button variant="outline" onClick={handleCancelSimulation}>
-                  Cancel
-                </Button>
-              </Dialog.CloseTrigger>
               <Button
                 bg="#3A3A3A"
                 color="#F4ECD8"
                 _hover={{ bg: "#2A2A2A" }}
                 onClick={handleGenerateSimulation}
-                disabled={!simulationBrief.trim()}
+                disabled={!simulationTitle.trim() || !simulationBrief.trim()}
               >
                 Generate
               </Button>
