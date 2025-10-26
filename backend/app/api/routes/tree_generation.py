@@ -296,18 +296,8 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             last_message = session.get(Message, last_message_id)
             if not last_message:
                 raise HTTPException(status_code=404, detail=f"Message with id {last_message_id} not found")
-            
-            # Save Level 1 message as child of last_message
-            level1_msg = Message(
-                content=scenarios_tree.get("line", ""),
-                role=scenarios_tree.get("speaker", "A"),
-                simulation_id=existing_tree_id,
-                parent_id=last_message_id,
-                selected=False  # Not selected by default
-            )
-            session.add(level1_msg)
-            session.commit()
-            session.refresh(level1_msg)
+
+            level1_msg = last_message
             
             # Save Level 2 messages (B responses)
             level2_messages = []
