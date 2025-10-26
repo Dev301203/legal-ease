@@ -358,9 +358,7 @@ useEffect(() => {
         <Text color="red.500" fontSize="lg">
           {error || "Case not found"}
         </Text>
-        <Button mt={4} onClick={() => navigate({ to: "/cases" })}>
-          Back to Cases
-        </Button>
+
       </Box>
     )
   }
@@ -368,18 +366,7 @@ useEffect(() => {
   return (
     <Box minHeight="100vh" bg="#F4ECD8" py={8}>
       <Container maxW="1200px">
-        {/* Back Button */}
-        <Box mb={4}>
-          <Text
-            as="button"
-            onClick={() => navigate({ to: "/cases" })}
-            color="#3A3A3A"
-            fontSize="sm"
-            _hover={{ textDecoration: "underline" }}
-          >
-            ← Back to Cases
-          </Text>
-        </Box>
+
 
         {/* Case Title */}
         <Heading fontSize="3xl" fontWeight="semibold" color="#3A3A3A" mb={6}>
