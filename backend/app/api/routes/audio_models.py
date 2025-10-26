@@ -102,10 +102,10 @@ async def transcribe_audio(audio_file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
     
 @router.post("/summarize-dialogue")
-async def summarize_dialogue(data: str):
+async def summarize_dialogue(data: str, desired_length: int):
     """
-    Takes in a string describing a possible scenario option
-    Returns a shortened summary about 8 words long, as a verb.
+    Takes in a string describing what you want summarized, the desired length to summarize it to.
+    Returns a shortened summary about desired_length words long, as if a lawyer said it.
     """
     try:
 
@@ -114,7 +114,8 @@ async def summarize_dialogue(data: str):
             model="Qwen3-32B-thinking-Hackathon",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Say only 8 words to summarize the following as an action. Do not say anything else or think:\n" + data}
+                #{"role": "user", "content": "Imagine you are a lawyer in a negotiation. Say only 8 words to summarize the following. Do not say anything else or think:\n" + data}
+                {"role": "user", "content": "Imagine you are a lawyer in a negotiation. Say only " + str(desired_length) + " words to summarize the following. Do not say anything else or think: " + data}
             ],
             max_tokens=128,
             temperature=0.7
