@@ -14,8 +14,34 @@ function HomePage() {
       justifyContent="center"
       height="100vh"
       width="100%"
+      position="relative"
+      overflow="hidden"
     >
-      <VStack gap={8}>
+      <Image
+        src="/assets/images/ink-bg-1.jpg"
+        alt="Ink background"
+        position="absolute"
+        right="0"
+        height="100%"
+        width="auto"
+        objectFit="cover"
+        opacity={0.2}
+        mixBlendMode="multiply"
+      />
+      <Box
+        position="absolute"
+        left="50%"
+        top="50%"
+        transform="translate(-50%, -50%)"
+        height="80vh"
+        width="80vh"
+        bg="#F4ECD8"
+        borderRadius="50%"
+        zIndex={0}
+        filter="blur(90px)"
+        opacity={0.8}
+      />
+      <VStack gap={8} zIndex={1}>
         <Image
           src="/assets/images/logo.png"
           alt="LegalEase Logo"
