@@ -290,7 +290,6 @@ useEffect(() => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          summary: caseData.summary,
           party_a: caseData.background.party_a,
           party_b: caseData.background.party_b,
           key_issues: caseData.background.key_issues,
@@ -301,6 +300,12 @@ useEffect(() => {
       if (!response.ok) {
         throw new Error(`Failed to save case: ${response.status}`)
       }
+
+      // Get the updated case data including the regenerated summary
+      const data = await response.json()
+      
+      // Update the summary with the regenerated value from the API
+      setCaseData({ ...caseData, summary: data.summary })
 
       // Show success message or update UI
       console.log("Case saved successfully")
@@ -396,11 +401,12 @@ useEffect(() => {
                 </Heading>
                 <Textarea
                   value={caseData.summary}
-                  onChange={(e) => setCaseData({ ...caseData, summary: e.target.value })}
+                  readOnly
                   fontSize="md"
                   color="#666"
                   lineHeight="1.6"
                   minHeight="80px"
+                  bg="#f5f5f5"
                 />
               </VStack>
             </Card.Body>
