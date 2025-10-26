@@ -170,7 +170,7 @@ async def get_conversation_audio(start_message_id: int, end_message_id: int, ses
 
     try:
         # messages = get_messages_by_tree(session, tree_id)
-        messages = get_selected_messages_between(start_message_id, end_message_id)
+        messages = get_selected_messages_between(session, start_message_id, end_message_id)
 
         tts_string = ""
 
