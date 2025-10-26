@@ -32,6 +32,7 @@ import {
   deleteBookmark,
   getConversationAudio,
 } from "@/services/scenarioService"
+import { DefaultService } from "../client"
 import {
   buildDialogueTreeFromMessages,
   findNodeInTree,
@@ -269,15 +270,11 @@ const handleStopRecording = async () => {
         const formData = new FormData();
         formData.append("audio_file", wavBlob, "recording.wav");
 
-        const response = await fetch("http://localhost:8000/api/v1/transcribe-audio", {
-          method: "POST",
-          body: formData,
-        });
+        const data = await DefaultService.transcribeAudio({
+          formData: formData as any,
+        }) as any;
 
-        if (!response.ok) throw new Error(`Transcription failed: ${response.status}`);
-
-        const data = await response.json();
-        const transcript = data.message;
+        const transcript = data.message as string;
 
 
         // Instead of appending to general_notes, set it to customResponse

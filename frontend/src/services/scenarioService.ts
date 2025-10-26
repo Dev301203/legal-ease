@@ -1,13 +1,15 @@
 // API service layer for Scenario Explorer
-// Uses direct fetch calls to backend API
+// Uses generated API client and environment variables
 
 import type {
   TreeMessagesResponse,
   TreeResponse,
   MessageCreateResponse,
 } from "@/types/scenario"
+import { DefaultService } from "../client"
 
-const API_BASE = "http://localhost:8000/api/v1"
+// For endpoints not yet in the generated client
+const API_BASE = `${import.meta.env.VITE_API_URL}/api/v1`
 
 /**
  * Load the full message tree for a simulation
@@ -18,16 +20,7 @@ const API_BASE = "http://localhost:8000/api/v1"
 export async function loadSimulationTree(
   simulationId: number
 ): Promise<TreeMessagesResponse[]> {
-  const response = await fetch(`${API_BASE}/trees/${simulationId}/messages`)
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("Simulation not found")
-    }
-    throw new Error(`Failed to load simulation tree: ${response.statusText}`)
-  }
-
-  return await response.json()
+  return await DefaultService.getTreeMessagesEndpoint({ simulationId })
 }
 
 /**
@@ -45,6 +38,8 @@ export async function continueConversation(
   treeId: number,
   refresh: boolean = false
 ): Promise<TreeResponse> {
+  // Note: Generated client types don't include message_id and refresh yet
+  // Using fetch directly until OpenAPI spec is updated
   const response = await fetch(`${API_BASE}/continue-conversation`, {
     method: "POST",
     headers: {
@@ -83,26 +78,15 @@ export async function createCustomMessage(
   content: string,
   role: string = "user"
 ): Promise<MessageCreateResponse> {
-  // Use the summarized endpoint which summarizes the user input before creating the message
-  const response = await fetch(`${API_BASE}/messages/create-summarized`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  return await DefaultService.createMessage({
+    requestBody: {
       simulation_id: simulationId,
       parent_id: parentId,
       user_input: content,
       role,
       desired_length: 15, // Summarize to 15 words
-    }),
+    },
   })
-
-  if (!response.ok) {
-    throw new Error(`Failed to create message: ${response.statusText}`)
-  }
-
-  return await response.json()
 }
 
 /**
@@ -111,13 +95,7 @@ export async function createCustomMessage(
  * @throws Error if selection fails
  */
 export async function selectMessage(messageId: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/messages/${messageId}/select`, {
-    method: "PATCH",
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to select message: ${response.statusText}`)
-  }
+  await DefaultService.selectMessage({ messageId })
 }
 
 /**
@@ -127,13 +105,7 @@ export async function selectMessage(messageId: number): Promise<void> {
  * @throws Error if fetch fails
  */
 export async function getMessageChildren(messageId: number): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/messages/${messageId}/children`)
-
-  if (!response.ok) {
-    throw new Error(`Failed to get message children: ${response.statusText}`)
-  }
-
-  return await response.json()
+  return await DefaultService.getChildren({ messageId })
 }
 
 /**
@@ -142,13 +114,7 @@ export async function getMessageChildren(messageId: number): Promise<any[]> {
  * @throws Error if deletion fails
  */
 export async function trimMessagesAfter(messageId: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/messages/trim-after/${messageId}`, {
-    method: "DELETE",
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to trim messages: ${response.statusText}`)
-  }
+  await DefaultService.trimMessagesAfterChildren({ messageId })
 }
 
 /**
@@ -159,13 +125,10 @@ export async function trimMessagesAfter(messageId: number): Promise<void> {
  * @throws Error if audio generation fails
  */
 export async function getConversationAudio(simulationId: number, messageId: number): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/get-conversation-audio/${simulationId}?end_message_id=${messageId}`)
-
-  if (!response.ok) {
-    throw new Error(`Failed to get conversation audio: ${response.statusText}`)
-  }
-
-  return await response.blob()
+  return await DefaultService.getConversationAudio({
+    simulationId,
+    endMessageId: messageId
+  })
 }
 
 /**
@@ -175,16 +138,7 @@ export async function getConversationAudio(simulationId: number, messageId: numb
  * @throws Error if case not found
  */
 export async function getCaseWithSimulations(caseId: number): Promise<any> {
-  const response = await fetch(`${API_BASE}/cases/${caseId}`)
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("Case not found")
-    }
-    throw new Error(`Failed to get case: ${response.statusText}`)
-  }
-
-  return await response.json()
+  return await DefaultService.getCaseWithSimulations({ caseId })
 }
 
 /**

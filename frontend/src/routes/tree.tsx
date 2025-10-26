@@ -20,6 +20,8 @@ import axios from 'axios';
 import dagre from 'dagre';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const fitViewOptions: FitViewOptions = { padding: 0.2 };
 const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
@@ -116,7 +118,7 @@ function Flow({ simulationId }: { simulationId: number }) {
     async function fetchBookmarksAndPaths() {
       try {
         const response = await axios.get<{ message_id: number }[]>(
-          `http://localhost:8000/api/v1/bookmarks/${simulationId}`
+          `${API_BASE}/api/v1/bookmarks/${simulationId}`
         );
         const bookmarkIds = response.data.map(b => b.message_id.toString());
         const bookmarkIdsSet = new Set<string>(bookmarkIds);
@@ -125,7 +127,7 @@ function Flow({ simulationId }: { simulationId: number }) {
         const pathIds = new Set<string>();
         await Promise.all(bookmarkIds.map(async (id) => {
           const res = await axios.get<{ id: number }[]>(
-            `http://localhost:8000/api/v1/trees/${simulationId}/messages/traversal?message_id=${id}`
+            `${API_BASE}/api/v1/trees/${simulationId}/messages/traversal?message_id=${id}`
           );
           res.data.forEach(m => pathIds.add(m.id.toString()));
         }));
@@ -143,7 +145,7 @@ function Flow({ simulationId }: { simulationId: number }) {
     async function fetchMessages() {
       try {
         const response = await axios.get<MessageNode[]>(
-          `http://localhost:8000/api/v1/trees/${simulationId}/messages`
+          `${API_BASE}/api/v1/trees/${simulationId}/messages`
         );
         const treeData = response.data;
 

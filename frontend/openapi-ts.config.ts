@@ -1,7 +1,9 @@
 import { defineConfig } from "@hey-api/openapi-ts"
 
+const apiUrl = process.env.VITE_API_URL || "http://localhost:8000"
+
 export default defineConfig({
-  input: "http://localhost:8000/api/v1/openapi.json",
+  input: `${apiUrl}/api/v1/openapi.json`,
   output: "./src/client",
 
   plugins: [

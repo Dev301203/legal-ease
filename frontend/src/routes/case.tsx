@@ -15,6 +15,7 @@ import {
   Spinner,
 } from "@chakra-ui/react"
 import { FiPlus } from "react-icons/fi"
+import { DefaultService } from "../client"
 
 interface CaseSearchParams {
   id?: string
@@ -132,15 +133,11 @@ const handleStopRecording = async () => {
         const formData = new FormData();
         formData.append("audio_file", wavBlob, "recording.wav");
 
-        const response = await fetch("http://localhost:8000/api/v1/transcribe-audio", {
-          method: "POST",
-          body: formData,
-        });
+        const data = await DefaultService.transcribeAudio({
+          formData: formData as any,
+        }) as any;
 
-        if (!response.ok) throw new Error(`Transcription failed: ${response.status}`);
-
-        const data = await response.json();
-        const transcript = data.message;
+        const transcript = data.message as string;
 
         // Update the general_notes in state
         setEditedBackground((prev) => ({
@@ -251,10 +248,9 @@ useEffect(() => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/cases/${id}`)
-      if (!response.ok) throw new Error(`Failed to fetch case: ${response.status}`)
-
-      const data = await response.json()
+      const data = await DefaultService.getCaseWithSimulations({
+        caseId: Number(id),
+      }) as any
 
       // ✅ Parse simulations
       const simulations = data.simulations.map((sim: any) => ({
@@ -307,19 +303,11 @@ useEffect(() => {
 
     setSaving(true)
     try {
-
-      const response = await fetch(`http://localhost:8000/api/v1/cases/${caseData.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedBackground),
-    });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save case: ${response.status}`)
-      }
-
       // Get the updated case data including the regenerated summary
-      const data = await response.json()
+      const data = await DefaultService.updateCase({
+        caseId: Number(caseData.id),
+        requestBody: updatedBackground as any,
+      }) as any
 
       // Update both the summary and background to preserve the saved data
       setCaseData({
@@ -358,7 +346,8 @@ useEffect(() => {
     setIsGenerating(true)
     try {
       // Call backend to create simulation
-      const response = await fetch(`http://localhost:8000/api/v1/simulations`, {
+      const apiUrl = import.meta.env.VITE_API_URL
+      const response = await fetch(`${apiUrl}/api/v1/simulations`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -378,34 +367,21 @@ useEffect(() => {
       const newSimulationId = data.id
 
       // Call continue-conversation endpoint with the new simulation's tree_id
-      const conversationResponse = await fetch(`http://localhost:8000/api/v1/continue-conversation`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const conversationData = await DefaultService.continueConversation({
+        requestBody: {
           case_id: Number(id),
           tree_id: Number(newSimulationId),
-          message_id: null,
-          refresh: false,
-        }),
+        },
       })
 
-      if (!conversationResponse.ok) {
-        throw new Error("Failed to start conversation")
-      }
-
-      const conversationData = await conversationResponse.json()
       console.log("Conversation started:", conversationData)
 
       // Fetch the tree messages to get the root message ID
-      const treeResponse = await fetch(`http://localhost:8000/api/v1/trees/${newSimulationId}/messages`)
-      if (!treeResponse.ok) {
-        throw new Error("Failed to fetch tree messages")
-      }
+      const treeMessages = await DefaultService.getTreeMessagesEndpoint({
+        simulationId: Number(newSimulationId),
+      })
 
-      const treeMessages = await treeResponse.json()
-      const rootMessageId = treeMessages[0]?.id // Get the root message ID
+      const rootMessageId = Number(treeMessages[0]?.id) // Get the root message ID
 
       setIsNewSimulationOpen(false)
       navigate({

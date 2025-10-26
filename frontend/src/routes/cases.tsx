@@ -14,6 +14,7 @@ import {
 import { Dialog } from "@chakra-ui/react"
 import { useEffect, useState } from "react"
 import { FiX } from "react-icons/fi"
+import { DefaultService } from "../client"
 
 
 export const Route = createFileRoute("/cases")({
@@ -38,8 +39,7 @@ function CasesPage() {
 
 
     useEffect(() => {
-    fetch("http://localhost:8000/api/v1/cases") // adjust base URL if needed
-      .then((res) => res.json())
+    DefaultService.getAllCases()
       .then((data: Case[]) => setCases(data))
       .catch((err) => console.error("Failed to fetch cases:", err))
   }, [])
@@ -51,25 +51,15 @@ function CasesPage() {
   const handleCreateCase = async () => {
     if (newCaseTitle.trim()) {
       try {
-        const response = await fetch("http://localhost:8000/api/v1/cases", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+        const newCase = await DefaultService.createCase({
+          requestBody: {
             name: newCaseTitle,
             summary: "",
             party_a: "",
             party_b: "",
             context: null,
-          }),
+          },
         })
-
-        if (!response.ok) {
-          throw new Error("Failed to create case")
-        }
-
-        const newCase = await response.json()
 
         // Add to local state
         setCases([...cases, {
