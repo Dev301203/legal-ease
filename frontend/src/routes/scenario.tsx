@@ -17,14 +17,14 @@ import { Dialog } from "@chakra-ui/react"
 import { toaster } from "@/components/ui/toaster"
 import { FiSave, FiMic, FiEye, FiPlay } from "react-icons/fi"
 
-interface SimulationSearchParams {
+interface ScenarioSearchParams {
   id?: string
 }
 
-export const Route = createFileRoute("/simulation")({
+export const Route = createFileRoute("/scenario")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): SimulationSearchParams => {
+  ): ScenarioSearchParams => {
     return {
       id: (search.id as string) || undefined,
     }
@@ -125,8 +125,10 @@ const mockSimulations: Record<string, Simulation> = {
 }
 
 // Initial dialogue tree with opening statement
-const createInitialDialogueTree = (): DialogueNode => ({
-  id: "root",
+// In production, this would be loaded from the backend based on the node ID
+// For the mock, we create a simple tree with the provided node ID as root
+const createInitialDialogueTree = (nodeId: string): DialogueNode => ({
+  id: nodeId,
   statement:
     "Anna, good to speak. My client has run the numbers, and the most logical step is to sell the home and split the equity. He proposes a 50/50 division.",
   party: "B",
@@ -188,11 +190,16 @@ function SimulationPage() {
   const navigate = useNavigate()
   const { id } = Route.useSearch()
 
+  // If no node ID, redirect to cases list
+  if (!id) {
+    navigate({ to: "/cases" })
+    return null
+  }
+
   // State management
   const [dialogueTree, setDialogueTree] = useState<DialogueNode>(
-    createInitialDialogueTree(),
+    createInitialDialogueTree(id)
   )
-  const [currentPath, setCurrentPath] = useState<string[]>(["root"])
   const [customResponse, setCustomResponse] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [pendingResponseOptions, setPendingResponseOptions] = useState<
@@ -204,13 +211,18 @@ function SimulationPage() {
   const [isVisualizationOpen, setIsVisualizationOpen] = useState(false)
   const [narrationUrl, setNarrationUrl] = useState<string | null>(null)
 
-  // If no simulation ID, redirect to cases list
-  if (!id) {
-    navigate({ to: "/cases" })
-    return null
+  // Mock: Extract simulation ID from node ID
+  // In production, the backend would return this with the node data
+  const getSimulationId = (nodeId: string): string => {
+    // If it starts with "st" followed by a number, extract simulation ID
+    const match = nodeId.match(/^(st\d+)/)
+    if (match) return match[1]
+    // For dynamically created nodes, default to st1 for mock
+    return "st1"
   }
 
-  const simulation = mockSimulations[id]
+  const simulationId = getSimulationId(id)
+  const simulation = mockSimulations[simulationId]
 
   // If simulation not found, redirect to cases list
   if (!simulation) {
@@ -235,42 +247,57 @@ function SimulationPage() {
     }
   }, [id])
 
-  // Get current node in the dialogue tree
-  const getCurrentNode = (): DialogueNode => {
-    let node = dialogueTree
-    for (let i = 1; i < currentPath.length; i++) {
-      const childNode = node.children.find((child) => child.id === currentPath[i])
-      if (!childNode) break
-      node = childNode
+  // Find a node by ID in the tree (recursive search)
+  const findNodeById = (tree: DialogueNode, nodeId: string): DialogueNode | null => {
+    if (tree.id === nodeId) return tree
+
+    for (const child of tree.children) {
+      const found = findNodeById(child, nodeId)
+      if (found) return found
     }
-    return node
+
+    return null
   }
 
-  // Get conversation history (all nodes along current path)
-  const getConversationHistory = (): DialogueNode[] => {
-    const history: DialogueNode[] = []
-    let node = dialogueTree
-    history.push(node)
+  // Build path from root to target node
+  const buildPathToNode = (tree: DialogueNode, targetId: string, path: DialogueNode[] = []): DialogueNode[] | null => {
+    const newPath = [...path, tree]
 
-    for (let i = 1; i < currentPath.length; i++) {
-      const childNode = node.children.find((child) => child.id === currentPath[i])
-      if (!childNode) break
-      history.push(childNode)
-      node = childNode
+    if (tree.id === targetId) {
+      return newPath
     }
 
-    return history
+    for (const child of tree.children) {
+      const found = buildPathToNode(child, targetId, newPath)
+      if (found) return found
+    }
+
+    return null
+  }
+
+  // Get current node based on URL id parameter
+  const getCurrentNode = (): DialogueNode | null => {
+    if (!id) return null
+    return findNodeById(dialogueTree, id)
+  }
+
+  // Get conversation history (all nodes from root to current)
+  const getConversationHistory = (): DialogueNode[] => {
+    if (!id) return []
+    const path = buildPathToNode(dialogueTree, id)
+    return path || []
   }
 
   // Get the party whose turn it is
-  const getCurrentTurnParty = (): Party => {
+  const getCurrentTurnParty = (): Party | null => {
     const currentNode = getCurrentNode()
+    if (!currentNode) return null
     return currentNode.party === "A" ? "B" : "A"
   }
 
   // Handle submitting a custom response (Party A's turn)
   const handleSubmitCustomResponse = async () => {
-    if (!customResponse.trim() || isLoading) return
+    if (!customResponse.trim() || isLoading || !id) return
 
     setIsLoading(true)
 
@@ -287,18 +314,22 @@ function SimulationPage() {
 
     // Update tree
     const updatedTree = { ...dialogueTree }
-    const currentNode = getCurrentNodeMutable(updatedTree)
-    currentNode.children.push(newNode)
+    const currentNode = findNodeById(updatedTree, id)
+    if (currentNode) {
+      currentNode.children.push(newNode)
+      setDialogueTree(updatedTree)
+      setCustomResponse("")
 
-    setDialogueTree(updatedTree)
-    setCurrentPath([...currentPath, newNode.id])
-    setCustomResponse("")
+      // Navigate to the new node
+      navigate({ to: "/scenario", search: { id: newNode.id } })
+    }
+
     setIsLoading(false)
   }
 
   // Handle selecting a pre-generated response option (Party A's turn)
   const handleSelectPregeneratedResponse = async (responseText: string) => {
-    if (isLoading) return
+    if (isLoading || !id) return
 
     setIsLoading(true)
 
@@ -314,16 +345,22 @@ function SimulationPage() {
     }
 
     const updatedTree = { ...dialogueTree }
-    const currentNode = getCurrentNodeMutable(updatedTree)
-    currentNode.children.push(newNode)
+    const currentNode = findNodeById(updatedTree, id)
+    if (currentNode) {
+      currentNode.children.push(newNode)
+      setDialogueTree(updatedTree)
 
-    setDialogueTree(updatedTree)
-    setCurrentPath([...currentPath, newNode.id])
+      // Navigate to the new node
+      navigate({ to: "/scenario", search: { id: newNode.id } })
+    }
+
     setIsLoading(false)
   }
 
   // Handle selecting opposing counsel's response (Party B's turn)
   const handleSelectOpposingResponse = (responseText: string) => {
+    if (!id) return
+
     const newNode: DialogueNode = {
       id: `node-${Date.now()}`,
       statement: responseText,
@@ -332,42 +369,25 @@ function SimulationPage() {
     }
 
     const updatedTree = { ...dialogueTree }
-    const currentNode = getCurrentNodeMutable(updatedTree)
-    currentNode.children.push(newNode)
+    const currentNode = findNodeById(updatedTree, id)
+    if (currentNode) {
+      currentNode.children.push(newNode)
+      setDialogueTree(updatedTree)
+      setPendingResponseOptions([])
 
-    setDialogueTree(updatedTree)
-    setCurrentPath([...currentPath, newNode.id])
-    setPendingResponseOptions([])
+      // Navigate to the new node
+      navigate({ to: "/scenario", search: { id: newNode.id } })
+    }
   }
 
-  // Helper to get mutable node reference
-  const getCurrentNodeMutable = (tree: DialogueNode): DialogueNode => {
-    let node = tree
-    for (let i = 1; i < currentPath.length; i++) {
-      const childNode = node.children.find((child) => child.id === currentPath[i])
-      if (!childNode) break
-      node = childNode
-    }
-    return node
-  }
+  // Handle navigation to a specific node in history
+  const handleNavigateToNode = (nodeId: string) => {
+    // Simply navigate to the node ID - the URL will update and component will re-render
+    navigate({ to: "/scenario", search: { id: nodeId } })
 
-  // Handle navigation back to a previous turn
-  const handleNavigateToNode = (nodeIndex: number) => {
-    const newPath = currentPath.slice(0, nodeIndex + 1)
-    setCurrentPath(newPath)
-
-    let node = dialogueTree
-    for (let i = 1; i < newPath.length; i++) {
-      const childNode = node.children.find((child) => child.id === newPath[i])
-      if (!childNode) {
-        setPendingResponseOptions([])
-        setCustomResponse("")
-        return
-      }
-      node = childNode
-    }
-
-    if (node.party === "A") {
+    // Update pending responses based on the node
+    const node = findNodeById(dialogueTree, nodeId)
+    if (node && node.party === "A") {
       const responses = getMockResponses(node.statement)
       setPendingResponseOptions(responses)
     } else {
@@ -378,8 +398,11 @@ function SimulationPage() {
 
   // Handle going back one step
   const handleBackOne = () => {
-    if (currentPath.length > 1) {
-      handleNavigateToNode(currentPath.length - 2)
+    const history = getConversationHistory()
+    if (history.length > 1) {
+      // Navigate to the parent node (second-to-last in history)
+      const parentNode = history[history.length - 2]
+      handleNavigateToNode(parentNode.id)
     }
   }
 
@@ -501,7 +524,7 @@ function SimulationPage() {
                     shadow: "sm",
                     borderColor: node.party === "A" ? "slate.600" : "salmon.600",
                   }}
-                  onClick={() => handleNavigateToNode(index)}
+                  onClick={() => handleNavigateToNode(node.id)}
                   transition="all 0.2s"
                 >
                   <Text fontSize="xs" fontWeight="bold" color="#3A3A3A" mb={1}>
@@ -586,7 +609,7 @@ function SimulationPage() {
             </Heading>
 
             {/* Back Button (if not at root) */}
-            {currentPath.length > 1 && (
+            {conversationHistory.length > 1 && (
               <Box mb={4}>
                 <Button
                   size="sm"
@@ -599,31 +622,35 @@ function SimulationPage() {
               </Box>
             )}
 
-            <Heading
-              fontSize="lg"
-              fontWeight="bold"
-              color="#3A3A3A"
-              textTransform="uppercase"
-              mb={3}
-            >
-              Last Statement
-            </Heading>
+            {currentNode && (
+              <>
+                <Heading
+                  fontSize="lg"
+                  fontWeight="bold"
+                  color="#3A3A3A"
+                  textTransform="uppercase"
+                  mb={3}
+                >
+                  Last Statement
+                </Heading>
 
-            {/* Current Statement */}
-            <Card.Root
-              mb={6}
-              bg="white"
-              border="2px solid"
-              borderColor={currentNode.party === "A" ? "slate.500" : "salmon.500"}
-            >
-              <Card.Body>
-                <VStack alignItems="flex-start" gap={3}>
-                  <Text fontSize="lg" color="#3A3A3A" lineHeight="1.6">
-                    {currentNode.statement}
-                  </Text>
-                </VStack>
-              </Card.Body>
-            </Card.Root>
+                {/* Current Statement */}
+                <Card.Root
+                  mb={6}
+                  bg="white"
+                  border="2px solid"
+                  borderColor={currentNode.party === "A" ? "slate.500" : "salmon.500"}
+                >
+                  <Card.Body>
+                    <VStack alignItems="flex-start" gap={3}>
+                      <Text fontSize="lg" color="#3A3A3A" lineHeight="1.6">
+                        {currentNode.statement}
+                      </Text>
+                    </VStack>
+                  </Card.Body>
+                </Card.Root>
+              </>
+            )}
 
             {/* Loading State */}
             {isLoading && (
@@ -650,7 +677,7 @@ function SimulationPage() {
 
                 <VStack gap={4} alignItems="stretch">
                   {/* Pre-generated options (first turn) or no options yet */}
-                  {currentPath.length === 1 &&
+                  {conversationHistory.length === 1 &&
                     initialResponseOptions.map((option) => (
                         <Card.Root
                           key={option.id}
