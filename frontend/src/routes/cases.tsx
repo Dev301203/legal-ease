@@ -133,33 +133,6 @@ function CasesPage() {
         </Heading>
 
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={6}>
-          {/* New Case Card */}
-          <Card.Root
-            cursor="pointer"
-            onClick={handleNewCase}
-            _hover={{ transform: "scale(1.02)", shadow: "lg" }}
-            transition="all 0.2s"
-            bg="white"
-            borderWidth="2px"
-            borderStyle="dashed"
-            borderColor="#3A3A3A"
-          >
-            <Card.Body>
-              <VStack
-                height="200px"
-                justifyContent="center"
-                alignItems="center"
-              >
-                <Text fontSize="6xl" color="#3A3A3A">
-                  +
-                </Text>
-                <Text fontSize="lg" fontWeight="medium" color="#3A3A3A">
-                  New Case
-                </Text>
-              </VStack>
-            </Card.Body>
-          </Card.Root>
-
           {/* Existing Cases */}
           {cases.map((caseItem) => (
             <Card.Root
@@ -201,6 +174,32 @@ function CasesPage() {
               </Card.Body>
             </Card.Root>
           ))}
+          {/* New Case Card */}
+          <Card.Root
+            cursor="pointer"
+            onClick={handleNewCase}
+            _hover={{ transform: "scale(1.02)", shadow: "lg" }}
+            transition="all 0.2s"
+            bg="white"
+            borderWidth="2px"
+            borderStyle="dashed"
+            borderColor="#3A3A3A"
+          >
+            <Card.Body>
+              <VStack
+                height="200px"
+                justifyContent="center"
+                alignItems="center"
+              >
+                <Text fontSize="6xl" color="#3A3A3A">
+                  +
+                </Text>
+                <Text fontSize="lg" fontWeight="medium" color="#3A3A3A">
+                  New Case
+                </Text>
+              </VStack>
+            </Card.Body>
+          </Card.Root>
         </SimpleGrid>
       </Container>
 
