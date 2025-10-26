@@ -69,5 +69,6 @@ class CaseWithTreeCount(BaseModel):
     party_a: str
     party_b: str
     context: str
+    summary: str
     last_modified: datetime
     scenario_count: int

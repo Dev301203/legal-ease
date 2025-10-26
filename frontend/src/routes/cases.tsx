@@ -68,14 +68,46 @@ function CasesPage() {
 
 
 
-  const handleCreateCase = () => {
+  const handleCreateCase = async () => {
     if (newCaseTitle.trim()) {
-      // TODO: Create case in backend/state
-      // For now, just navigate to a new case with a generated ID
-      const newCaseId = `case-${Date.now()}`
-      setIsNewCaseModalOpen(false)
-      setNewCaseTitle("")
-      navigate({ to: "/case", search: { id: newCaseId } })
+      try {
+        const response = await fetch("http://localhost:8000/api/v1/cases", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: newCaseTitle,
+            summary: "",
+            party_a: "",
+            party_b: "",
+            context: null,
+          }),
+        })
+        
+        if (!response.ok) {
+          throw new Error("Failed to create case")
+        }
+        
+        const newCase = await response.json()
+        
+        // Add to local state
+        setCases([...cases, {
+          id: String(newCase.id),
+          name: newCase.name,
+          last_modified: new Date(newCase.last_modified),
+          scenario_count: newCase.scenario_count
+        }])
+        
+        setIsNewCaseModalOpen(false)
+        setNewCaseTitle("")
+        
+        // Navigate to the new case
+        navigate({ to: "/case", search: { id: String(newCase.id) } })
+      } catch (error) {
+        console.error("Error creating case:", error)
+        alert("Failed to create case. Please try again.")
+      }
     }
   }
 

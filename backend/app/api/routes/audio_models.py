@@ -127,6 +127,41 @@ async def summarize_dialogue(data: str, desired_length: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error summarizing in get-headline: {str(e)}")
 
+async def summarize_background_helper(data: str, desired_lines: int) -> str:
+    """
+    Helper function to summarize text using AI.
+    Takes in a string describing what you want summarized, the desired lines to summarize it to.
+    Returns a shortened summary about desired_lines number of lines long.
+    """
+    try:
+        client = get_boson_client()
+        response = client.chat.completions.create(
+            model="Qwen3-32B-thinking-Hackathon",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Say a maximum of " + str(desired_lines) + " lines to summarize the following. If you do not need to say much, don't say much. Do not say anything else or think: " + data}
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=128,
+            temperature=0.7
+        )
+
+        print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa summary: ")
+
+        return json.loads(response.choices[0].message.content)["summary"]
+    except Exception as e:
+        raise Exception(f"Error summarizing: {str(e)}")
+
+
+@router.post("/summarize-background")
+async def summarize_background(data: str, desired_lines: int):
+    """
+    API endpoint to summarize text.
+    Takes in a string describing what you want summarized, the desired lines to summarize it to.
+    Returns a shortened summary about desired_lines number of lines long.
+    """
+    result = await summarize_background_helper(data, desired_lines)
+    return {"message": result}
 
 @router.get("/get-conversation-audio/{tree_id}")
 async def get_conversation_audio(tree_id: int, session: Session = Depends(get_session)):

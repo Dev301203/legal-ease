@@ -6,6 +6,7 @@ import {
   Card,
   Collapsible,
   Container,
+  Dialog,
   Heading,
   HStack,
   Text,
@@ -13,7 +14,6 @@ import {
   VStack,
   Spinner,
 } from "@chakra-ui/react"
-import { Dialog } from "@chakra-ui/react"
 
 interface CaseSearchParams {
   id?: string
@@ -56,14 +56,7 @@ function CasePage() {
   const [caseData, setCaseData] = useState<CaseData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const [isEditBackgroundOpen, setIsEditBackgroundOpen] = useState(false)
-  const [editedBackground, setEditedBackground] = useState<CaseBackground>({
-    party_a: "",
-    party_b: "",
-    key_issues: "",
-    general_notes: "",
-  })
+  const [saving, setSaving] = useState(false)
 
   const [isNewSimulationOpen, setIsNewSimulationOpen] = useState(false)
   const [simulationBrief, setSimulationBrief] = useState("")
@@ -101,7 +94,7 @@ useEffect(() => {
         party_a: rawBg.party_a || "",
         party_b: rawBg.party_b || "",
         key_issues: Array.isArray(rawBg.key_issues)
-          ? rawBg.key_issues.map(issue => `• ${issue}`).join("\n")
+          ? rawBg.key_issues.map((issue: string) => `• ${issue}`).join("\n")
           : rawBg.key_issues || "",
         general_notes: rawBg.general_notes || "",
       }
@@ -126,17 +119,38 @@ useEffect(() => {
 }, [id])
 
 
-  const handleEditBackground = () => {
-    if (caseData) setEditedBackground(caseData.background)
-    setIsEditBackgroundOpen(true)
-  }
+  const handleSaveCase = async () => {
+    if (!caseData) return
+    
+    setSaving(true)
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/cases/${caseData.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary: caseData.summary,
+          party_a: caseData.background.party_a,
+          party_b: caseData.background.party_b,
+          key_issues: caseData.background.key_issues,
+          general_notes: caseData.background.general_notes,
+        }),
+      })
 
-  const handleSaveBackground = () => {
-    // TODO: Save background changes to backend
-    setIsEditBackgroundOpen(false)
-  }
+      if (!response.ok) {
+        throw new Error(`Failed to save case: ${response.status}`)
+      }
 
-  const handleCancelBackground = () => setIsEditBackgroundOpen(false)
+      // Show success message or update UI
+      console.log("Case saved successfully")
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || "Error saving case data")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleNewSimulation = () => {
     setSimulationBrief("")
@@ -215,9 +229,14 @@ useEffect(() => {
                 <Heading fontSize="lg" color="#3A3A3A">
                   Summary
                 </Heading>
-                <Text fontSize="md" color="#666" lineHeight="1.6">
-                  {caseData.summary}
-                </Text>
+                <Textarea 
+                  value={caseData.summary}
+                  onChange={(e) => setCaseData({ ...caseData, summary: e.target.value })} 
+                  fontSize="md"
+                  color="#666"
+                  lineHeight="1.6"
+                  minHeight="80px"
+                />
               </VStack>
             </Card.Body>
           </Card.Root>
@@ -226,21 +245,16 @@ useEffect(() => {
           <Card.Root width="100%" bg="white">
             <Collapsible.Root>
               <Card.Body>
-                <HStack justifyContent="space-between" width="100%" mb={2}>
-                  <Collapsible.Trigger paddingY={2} flex={1}>
-                    <HStack justifyContent="space-between" width="100%">
-                      <Heading fontSize="lg" color="#3A3A3A">
-                        Background
-                      </Heading>
-                      <Text fontSize="sm" color="#999">
-                        ▼
-                      </Text>
-                    </HStack>
-                  </Collapsible.Trigger>
-                  <Button size="sm" variant="outline" onClick={handleEditBackground}>
-                    Edit Background
-                  </Button>
-                </HStack>
+                <Collapsible.Trigger paddingY={2} flex={1} width="100%">
+                  <HStack justifyContent="space-between" width="100%">
+                    <Heading fontSize="lg" color="#3A3A3A">
+                      Background
+                    </Heading>
+                    <Text fontSize="sm" color="#999">
+                      ▼
+                    </Text>
+                  </HStack>
+                </Collapsible.Trigger>
 
                 <Collapsible.Content>
                   <VStack alignItems="flex-start" gap={4} width="100%" mt={4}>
@@ -248,28 +262,56 @@ useEffect(() => {
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
                         Party A (Our Client)
                       </Text>
-                      <Textarea value={caseData.background.party_a} readOnly rows={2} bg="gray.50" borderColor="gray.200" />
+                      <Textarea 
+                        value={caseData.background.party_a} 
+                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_a: e.target.value } })} 
+                        rows={2} 
+                      />
                     </Box>
 
                     <Box width="100%">
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
                         Party B (Opposing Party)
                       </Text>
-                      <Textarea value={caseData.background.party_b} readOnly rows={2} bg="gray.50" borderColor="gray.200" />
+                      <Textarea 
+                        value={caseData.background.party_b} 
+                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, party_b: e.target.value } })} 
+                        rows={2} 
+                      />
                     </Box>
 
                     <Box width="100%">
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
                         Key Issues
                       </Text>
-                      <Textarea value={caseData.background.key_issues} readOnly bg="gray.50" borderColor="gray.200" />
+                      <Textarea 
+                        value={caseData.background.key_issues} 
+                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, key_issues: e.target.value } })} 
+                      />
                     </Box>
 
                     <Box width="100%">
                       <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
                         General Notes
                       </Text>
-                      <Textarea value={caseData.background.general_notes} readOnly rows={3} bg="gray.50" borderColor="gray.200" />
+                      <Textarea 
+                        value={caseData.background.general_notes} 
+                        onChange={(e) => setCaseData({ ...caseData, background: { ...caseData.background, general_notes: e.target.value } })} 
+                        rows={3} 
+                      />
+                    </Box>
+
+                    {/* Save Button */}
+                    <Box width="100%" display="flex" justifyContent="flex-end" mt={2}>
+                      <Button
+                        bg="#3A3A3A"
+                        color="#F4ECD8"
+                        _hover={{ bg: "#2A2A2A" }}
+                        onClick={handleSaveCase}
+                        disabled={saving || !caseData}
+                      >
+                        {saving ? "Saving..." : "Save"}
+                      </Button>
                     </Box>
                   </VStack>
                 </Collapsible.Content>
@@ -327,51 +369,8 @@ useEffect(() => {
         </VStack>
       </Container>
 
-      {/* Edit Background Dialog */}
-      <Dialog.Root open={isEditBackgroundOpen} onOpenChange={(e) => setIsEditBackgroundOpen(e.open)}>
-        <Dialog.Backdrop />
-        <Dialog.Positioner>
-          <Dialog.Content maxW="600px">
-            <Dialog.Header>
-              <Dialog.Title>Edit Background</Dialog.Title>
-            </Dialog.Header>
-            <Dialog.Body>
-              <VStack gap={4} alignItems="flex-start" width="100%">
-                {["party_a", "party_b", "key_issues", "general_notes"].map((field) => (
-                  <Box width="100%" key={field}>
-                    <Text fontSize="sm" fontWeight="medium" color="#3A3A3A" mb={2}>
-                      {field.replace("_", " ").toUpperCase()}
-                    </Text>
-                    <Textarea
-                      value={(editedBackground as any)[field]}
-                      onChange={(e) =>
-                        setEditedBackground({
-                          ...editedBackground,
-                          [field]: e.target.value,
-                        })
-                      }
-                      rows={field === "general_notes" ? 4 : 2}
-                    />
-                  </Box>
-                ))}
-              </VStack>
-            </Dialog.Body>
-            <Dialog.Footer>
-              <Dialog.CloseTrigger asChild>
-                <Button variant="outline" onClick={handleCancelBackground}>
-                  Cancel
-                </Button>
-              </Dialog.CloseTrigger>
-              <Button bg="#3A3A3A" color="#F4ECD8" _hover={{ bg: "#2A2A2A" }} onClick={handleSaveBackground}>
-                Save
-              </Button>
-            </Dialog.Footer>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Dialog.Root>
-
       {/* New Simulation Dialog */}
-      <Dialog.Root open={isNewSimulationOpen} onOpenChange={(e) => setIsNewSimulationOpen(e.open)}>
+      <Dialog.Root open={isNewSimulationOpen} onOpenChange={(e: any) => setIsNewSimulationOpen(e.open)}>
         <Dialog.Backdrop />
         <Dialog.Positioner>
           <Dialog.Content maxW="600px">

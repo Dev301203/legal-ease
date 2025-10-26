@@ -1,11 +1,12 @@
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
-from app.api.routes.audio_models import get_session
+from app.api.routes.audio_models import get_session, summarize_background_helper
 from app.crud import get_messages_by_tree, get_selected_messages_between, \
     get_tree, delete_messages_after_children, get_message_children, \
     update_message_selected, get_case_context
@@ -326,6 +327,65 @@ def create_message(
 
     return new_message
 
+class CaseCreate(BaseModel):
+    name: str
+    summary: Optional[str] = None
+    party_a: Optional[str] = None
+    party_b: Optional[str] = None
+    context: Optional[str] = None
+
+@router.post("/cases", response_model=CaseWithTreeCount)
+async def create_case(
+    case_data: CaseCreate,
+    db: Session = Depends(get_session)
+):
+    """
+    Create a new case with the provided information.
+    Returns the created case with scenario count initialized to 0.
+    """
+    # Create default context if none provided
+    if case_data.context is None:
+        case_data.context = json.dumps({
+            "parties": {
+                "party_A": {"name": case_data.party_a or ""},
+                "party_B": {"name": case_data.party_b or ""}
+            },
+            "key_issues": "",
+            "general_notes": ""
+        })
+
+    try:
+        summary = await summarize_background_helper(case_data.context, desired_lines=30)
+    except Exception as e:
+        summary = ""
+    
+    # Create new case
+    new_case = Case(
+        name=case_data.name,
+        summary=summary,
+        party_a=case_data.party_a or "",
+        party_b=case_data.party_b or "",
+        context=case_data.context,
+        last_modified=datetime.now()
+    )
+
+    db.add(new_case)
+    print(new_case)
+    db.commit()
+    db.refresh(new_case)
+    
+    # Return with scenario count of 0
+    return CaseWithTreeCount(
+        id=new_case.id,
+        name=new_case.name,
+        party_a=new_case.party_a,
+        party_b=new_case.party_b,
+        context=new_case.context,
+        summary=new_case.summary,
+        last_modified=new_case.last_modified,
+        scenario_count=0
+    )
+
 @router.get("/cases", response_model=List[CaseWithTreeCount])
 def get_all_cases(db: Session = Depends(get_session)):
     """Return all cases with the number of trees for each case."""
@@ -343,6 +403,7 @@ def get_all_cases(db: Session = Depends(get_session)):
                 party_a=case.party_a,
                 party_b=case.party_b,
                 context=case.context,
+                summary=case.summary,
                 last_modified=case.last_modified,
                 scenario_count=tree_count,  # extract integer
             )
@@ -403,3 +464,75 @@ def get_case_with_simulations(case_id: int, session: Session = Depends(get_sessi
             for sim in simulations
         ],
     }
+
+
+class CaseUpdate(BaseModel):
+    party_a: Optional[str] = None
+    party_b: Optional[str] = None
+    key_issues: Optional[str] = None
+    general_notes: Optional[str] = None
+
+
+@router.patch("/cases/{case_id}")
+async def update_case(
+    case_id: int,
+    case_update: CaseUpdate,
+    session: Session = Depends(get_session)
+):
+    """
+    Update a case's background information.
+    Updates the context field which is stored as JSON.
+    Also regenerates the summary based on the updated context.
+    """
+    # Fetch case
+    case = session.exec(select(Case).where(Case.id == case_id)).first()
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found.")
+
+    # Parse existing context
+    try:
+        background_data = json.loads(case.context)
+    except Exception:
+        background_data = {
+            "parties": {"party_A": {"name": ""}, "party_B": {"name": ""}},
+            "key_issues": "",
+            "general_notes": ""
+        }
+
+    # Update fields if provided
+    if case_update.party_a is not None:
+        if "parties" not in background_data:
+            background_data["parties"] = {}
+        if "party_A" not in background_data["parties"]:
+            background_data["parties"]["party_A"] = {}
+        background_data["parties"]["party_A"]["name"] = case_update.party_a
+    
+    if case_update.party_b is not None:
+        if "parties" not in background_data:
+            background_data["parties"] = {}
+        if "party_B" not in background_data["parties"]:
+            background_data["parties"]["party_B"] = {}
+        background_data["parties"]["party_B"]["name"] = case_update.party_b
+    
+    if case_update.key_issues is not None:
+        background_data["key_issues"] = case_update.key_issues
+    
+    if case_update.general_notes is not None:
+        background_data["general_notes"] = case_update.general_notes
+
+    # Save updated context
+    case.context = json.dumps(background_data)
+    case.last_modified = datetime.now()
+    
+    # Regenerate summary based on updated context
+    try:
+        case.summary = await summarize_background_helper(case.context, desired_lines=30)
+    except Exception as e:
+        case.summary = ""
+    
+    session.add(case)
+    print(case)
+    session.commit()
+    session.refresh(case)
+
+    return {"message": "Case updated successfully", "case_id": case.id}
