@@ -67,22 +67,55 @@ export const Body_upload_audioSchema = {
     title: 'Body_upload_audio'
 } as const;
 
+export const BookmarkCreateSchema = {
+    properties: {
+        simulation_id: {
+            type: 'integer',
+            title: 'Simulation Id'
+        },
+        message_id: {
+            type: 'integer',
+            title: 'Message Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        }
+    },
+    type: 'object',
+    required: ['simulation_id', 'message_id', 'name'],
+    title: 'BookmarkCreate'
+} as const;
+
+export const BookmarkResponseSchema = {
+    properties: {
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
+        simulation_id: {
+            type: 'integer',
+            title: 'Simulation Id'
+        },
+        message_id: {
+            type: 'integer',
+            title: 'Message Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        }
+    },
+    type: 'object',
+    required: ['id', 'simulation_id', 'message_id', 'name'],
+    title: 'BookmarkResponse'
+} as const;
+
 export const CaseCreateSchema = {
     properties: {
         name: {
             type: 'string',
             title: 'Name'
-        },
-        summary: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Summary'
         },
         party_a: {
             anyOf: [
@@ -233,6 +266,17 @@ export const ContinueConversationRequestSchema = {
             type: 'integer',
             title: 'Case Id'
         },
+        message_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Message Id'
+        },
         tree_id: {
             anyOf: [
                 {
@@ -244,10 +288,10 @@ export const ContinueConversationRequestSchema = {
             ],
             title: 'Tree Id'
         },
-        simulation_goal: {
-            type: 'string',
-            title: 'Simulation Goal',
-            default: 'Reach a favorable settlement'
+        refresh: {
+            type: 'boolean',
+            title: 'Refresh',
+            default: false
         }
     },
     type: 'object',
@@ -314,41 +358,62 @@ export const ModelRequestSchema = {
     title: 'ModelRequest'
 } as const;
 
-export const TreeNodeSchema = {
+export const SimulationCreateSchema = {
     properties: {
-        speaker: {
+        headline: {
             type: 'string',
-            title: 'Speaker'
+            title: 'Headline'
         },
-        line: {
+        brief: {
             type: 'string',
-            title: 'Line'
+            title: 'Brief'
         },
-        level: {
+        case_id: {
             type: 'integer',
-            title: 'Level'
-        },
-        reflects_personality: {
-            type: 'string',
-            title: 'Reflects Personality'
-        },
-        responses: {
-            items: {
-                '$ref': '#/components/schemas/TreeNode'
-            },
-            type: 'array',
-            title: 'Responses',
-            default: []
+            title: 'Case Id'
         }
     },
     type: 'object',
-    required: ['speaker', 'line', 'level', 'reflects_personality'],
-    title: 'TreeNode'
+    required: ['headline', 'brief', 'case_id'],
+    title: 'SimulationCreate'
 } as const;
 
-export const TreeResponseSchema = {
+export const SimulationResponseSchema = {
     properties: {
-        tree_id: {
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
+        headline: {
+            type: 'string',
+            title: 'Headline'
+        },
+        brief: {
+            type: 'string',
+            title: 'Brief'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        case_id: {
+            type: 'integer',
+            title: 'Case Id'
+        }
+    },
+    type: 'object',
+    required: ['id', 'headline', 'brief', 'created_at', 'case_id'],
+    title: 'SimulationResponse'
+} as const;
+
+export const SummarizedMessageRequestSchema = {
+    properties: {
+        simulation_id: {
+            type: 'integer',
+            title: 'Simulation Id'
+        },
+        parent_id: {
             anyOf: [
                 {
                     type: 'integer'
@@ -357,45 +422,25 @@ export const TreeResponseSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Tree Id'
+            title: 'Parent Id'
         },
-        case_id: {
-            type: 'integer',
-            title: 'Case Id'
-        },
-        simulation_goal: {
+        user_input: {
             type: 'string',
-            title: 'Simulation Goal'
+            title: 'User Input'
         },
-        scenarios_tree: {
-            '$ref': '#/components/schemas/TreeNode'
+        role: {
+            type: 'string',
+            title: 'Role'
         },
-        error: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Error'
-        },
-        raw_response: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Raw Response'
+        desired_length: {
+            type: 'integer',
+            title: 'Desired Length',
+            default: 15
         }
     },
     type: 'object',
-    required: ['case_id', 'simulation_goal', 'scenarios_tree'],
-    title: 'TreeResponse'
+    required: ['simulation_id', 'parent_id', 'user_input', 'role'],
+    title: 'SummarizedMessageRequest'
 } as const;
 
 export const ValidationErrorSchema = {

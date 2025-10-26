@@ -6,6 +6,7 @@ import {
   Container,
   Heading,
   Icon,
+  IconButton,
   Input,
   SimpleGrid,
   Text,
@@ -13,8 +14,9 @@ import {
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { useEffect, useState } from "react"
-import { FiX } from "react-icons/fi"
+import { FiX, FiTrash2 } from "react-icons/fi"
 import { DefaultService } from "../client"
+import { toaster } from "@/components/ui/toaster"
 
 
 export const Route = createFileRoute("/cases")({
@@ -32,6 +34,8 @@ function CasesPage() {
   const navigate = useNavigate()
   const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false)
   const [newCaseTitle, setNewCaseTitle] = useState("")
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [caseToDelete, setCaseToDelete] = useState<Case | null>(null)
 
   const [cases, setCases] = useState<Case[]>([])
 
@@ -62,7 +66,6 @@ function CasesPage() {
         const newCase = await DefaultService.createCase({
           requestBody: {
             name: newCaseTitle,
-            summary: "",
             party_a: "",
             party_b: "",
             context: null,
@@ -98,6 +101,44 @@ function CasesPage() {
     navigate({ to: "/case", search: { id: caseId } })
   }
 
+  const handleDeleteClick = (e: React.MouseEvent, caseItem: Case) => {
+    e.stopPropagation() // Prevent card click navigation
+    setCaseToDelete(caseItem)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!caseToDelete) return
+
+    try {
+      await DefaultService.deleteCase({ caseId: Number(caseToDelete.id) })
+
+      // Remove from local state
+      setCases(cases.filter(c => c.id !== caseToDelete.id))
+
+      toaster.create({
+        title: "Case deleted",
+        description: `"${caseToDelete.name}" has been deleted successfully.`,
+        type: "success",
+      })
+    } catch (error) {
+      console.error("Error deleting case:", error)
+      toaster.create({
+        title: "Error",
+        description: "Failed to delete case. Please try again.",
+        type: "error",
+      })
+    } finally {
+      setIsDeleteDialogOpen(false)
+      setCaseToDelete(null)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setIsDeleteDialogOpen(false)
+    setCaseToDelete(null)
+  }
+
   return (
     <Box minHeight="100vh" bg="#F4ECD8" py={8}>
       <Container maxW="1200px">
@@ -120,6 +161,7 @@ function CasesPage() {
               _hover={{ transform: "scale(1.02)", shadow: "lg" }}
               transition="all 0.2s"
               bg="white"
+              position="relative"
             >
               <Card.Body>
                 <VStack alignItems="flex-start" gap={4} height="200px">
@@ -148,6 +190,19 @@ function CasesPage() {
                         : "simulations"}
                     </Text>
                   </VStack>
+
+                  <IconButton
+                    aria-label="Delete case"
+                    size="sm"
+                    variant="ghost"
+                    position="absolute"
+                    bottom={2}
+                    right={2}
+                    onClick={(e) => handleDeleteClick(e, caseItem)}
+                    _hover={{ bg: "red.50", color: "red.600" }}
+                  >
+                    <FiTrash2 />
+                  </IconButton>
                 </VStack>
               </Card.Body>
             </Card.Root>
@@ -229,6 +284,48 @@ function CasesPage() {
                 disabled={!newCaseTitle.trim()}
               >
                 Create Case
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog.Root
+        open={isDeleteDialogOpen}
+        onOpenChange={(e) => setIsDeleteDialogOpen(e.open)}
+      >
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.Header>
+              <Dialog.Title>Delete Case</Dialog.Title>
+              <Dialog.CloseTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelDelete}
+                  position="absolute"
+                  top={4}
+                  right={4}
+                >
+                  <Icon as={FiX} />
+                </Button>
+              </Dialog.CloseTrigger>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Text>
+                Are you sure you want to delete "{caseToDelete?.name}"? This will also delete all associated simulations, messages, and documents. This action cannot be undone.
+              </Text>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button
+                bg="red.600"
+                color="white"
+                _hover={{ bg: "red.700" }}
+                onClick={handleConfirmDelete}
+              >
+                Delete
               </Button>
             </Dialog.Footer>
           </Dialog.Content>

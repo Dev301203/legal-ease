@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { GetContextHistoryData, GetContextHistoryResponse, TranscribeAudioData, TranscribeAudioResponse, SummarizeDialogueData, SummarizeDialogueResponse, SummarizeBackgroundData, SummarizeBackgroundResponse, GetConversationAudioData, GetConversationAudioResponse, ContinueConversationData, ContinueConversationResponse, GetTreeMessagesEndpointData, GetTreeMessagesEndpointResponse, GetSelectedMessagesPathData, GetSelectedMessagesPathResponse, TrimMessagesAfterChildrenData, TrimMessagesAfterChildrenResponse, GetChildrenData, GetChildrenResponse, SelectMessageData, SelectMessageResponse, CreateMessageData, CreateMessageResponse, GetAllCasesResponse, CreateCaseData, CreateCaseResponse, GetCaseWithSimulationsData, GetCaseWithSimulationsResponse, UpdateCaseData, UpdateCaseResponse, GetContextHistory1Response, UploadAudioData, UploadAudioResponse, ProcessWithModelData, ProcessWithModelResponse, GetAvailableModelsResponse, GenerateAudioResponseData, GenerateAudioResponseResponse } from './types.gen';
+import type { GetContextHistoryData, GetContextHistoryResponse, TranscribeAudioData, TranscribeAudioResponse, SummarizeDialogueData, SummarizeDialogueResponse, SummarizeBackgroundData, SummarizeBackgroundResponse, GetConversationAudioData, GetConversationAudioResponse, ContinueConversationData, ContinueConversationResponse, GetTreeMessagesEndpointData, GetTreeMessagesEndpointResponse, GetSelectedMessagesPathData, GetSelectedMessagesPathResponse, TrimMessagesAfterChildrenData, TrimMessagesAfterChildrenResponse, GetChildrenData, GetChildrenResponse, SelectMessageData, SelectMessageResponse, CreateMessageData, CreateMessageResponse, CreateSummarizedMessageData, CreateSummarizedMessageResponse, GetAllCasesResponse, CreateCaseData, CreateCaseResponse, GetCaseWithSimulationsData, GetCaseWithSimulationsResponse, DeleteCaseData, DeleteCaseResponse, UpdateCaseData, UpdateCaseResponse, CreateSimulationEndpointData, CreateSimulationEndpointResponse, GetSimulationEndpointData, GetSimulationEndpointResponse, DeleteSimulationData, DeleteSimulationResponse, CreateBookmarkEndpointData, CreateBookmarkEndpointResponse, GetBookmarksBySimulationEndpointData, GetBookmarksBySimulationEndpointResponse, DeleteBookmarkEndpointData, DeleteBookmarkEndpointResponse, GetMessagesByTreeEndpointData, GetMessagesByTreeEndpointResponse, GetDummyContextHistoryResponse, UploadAudioData, UploadAudioResponse, ProcessWithModelData, ProcessWithModelResponse, GetAvailableModelsResponse, GenerateAudioResponseData, GenerateAudioResponseResponse, UtilsHealthCheckResponse } from './types.gen';
 
 export class DefaultService {
     /**
@@ -106,6 +106,7 @@ export class DefaultService {
      * Returns the generated audio file as wav.
      * @param data The data for the request.
      * @param data.treeId
+     * @param data.endMessageId
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -115,6 +116,9 @@ export class DefaultService {
             url: '/api/v1/get-conversation-audio/{tree_id}',
             path: {
                 tree_id: data.treeId
+            },
+            query: {
+                end_message_id: data.endMessageId
             },
             errors: {
                 422: 'Validation Error'
@@ -131,7 +135,7 @@ export class DefaultService {
      * If no tree_id is provided, assumes no prior history and creates a new tree.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns TreeResponse Successful Response
+     * @returns unknown Successful Response
      * @throws ApiError
      */
     public static continueConversation(data: ContinueConversationData): CancelablePromise<ContinueConversationResponse> {
@@ -261,7 +265,7 @@ export class DefaultService {
      * Create a new message in the conversation tree.
      * Used for custom user responses that aren't from the predefined options.
      * @param data The data for the request.
-     * @param data.treeId
+     * @param data.simulationId
      * @param data.parentId
      * @param data.content
      * @param data.role
@@ -273,11 +277,32 @@ export class DefaultService {
             method: 'POST',
             url: '/api/v1/messages/create',
             query: {
-                tree_id: data.treeId,
+                simulation_id: data.simulationId,
                 parent_id: data.parentId,
                 content: data.content,
                 role: data.role
             },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Create Summarized Message
+     * Create a new message with content summarized from user input using AI.
+     * Summarizes the user_input and creates a Message object with the summarized content.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns Message Successful Response
+     * @throws ApiError
+     */
+    public static createSummarizedMessage(data: CreateSummarizedMessageData): CancelablePromise<CreateSummarizedMessageResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/messages/create-summarized',
+            body: data.requestBody,
+            mediaType: 'application/json',
             errors: {
                 422: 'Validation Error'
             }
@@ -341,6 +366,29 @@ export class DefaultService {
     }
     
     /**
+     * Delete Case
+     * Delete a case by ID.
+     * All related simulations, documents, messages, and bookmarks will be automatically deleted
+     * via CASCADE constraints.
+     * @param data The data for the request.
+     * @param data.caseId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deleteCase(data: DeleteCaseData): CancelablePromise<DeleteCaseResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/cases/{case_id}',
+            path: {
+                case_id: data.caseId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
      * Update Case
      * Update a case's background information.
      * Updates the context field which is stored as JSON.
@@ -367,16 +415,165 @@ export class DefaultService {
     }
     
     /**
-     * Get Context History
+     * Create Simulation Endpoint
+     * Create a new simulation with headline, brief, and case_id.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns SimulationResponse Successful Response
+     * @throws ApiError
+     */
+    public static createSimulationEndpoint(data: CreateSimulationEndpointData): CancelablePromise<CreateSimulationEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/simulations',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Simulation Endpoint
+     * Get simulation details by ID, including headline (title), brief, created_at, and case_id.
+     * @param data The data for the request.
+     * @param data.simulationId
+     * @returns SimulationResponse Successful Response
+     * @throws ApiError
+     */
+    public static getSimulationEndpoint(data: GetSimulationEndpointData): CancelablePromise<GetSimulationEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/simulations/{simulation_id}',
+            path: {
+                simulation_id: data.simulationId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Simulation
+     * Delete a simulation by ID.
+     * All related messages and bookmarks will be automatically deleted via CASCADE constraints.
+     * @param data The data for the request.
+     * @param data.simulationId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deleteSimulation(data: DeleteSimulationData): CancelablePromise<DeleteSimulationResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/simulations/{simulation_id}',
+            path: {
+                simulation_id: data.simulationId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Create Bookmark Endpoint
+     * Create a new bookmark for a specific message in a simulation.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns BookmarkResponse Successful Response
+     * @throws ApiError
+     */
+    public static createBookmarkEndpoint(data: CreateBookmarkEndpointData): CancelablePromise<CreateBookmarkEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/bookmarks',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Bookmarks By Simulation Endpoint
+     * Get all bookmarks for a specific simulation.
+     * @param data The data for the request.
+     * @param data.simulationId
+     * @returns BookmarkResponse Successful Response
+     * @throws ApiError
+     */
+    public static getBookmarksBySimulationEndpoint(data: GetBookmarksBySimulationEndpointData): CancelablePromise<GetBookmarksBySimulationEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/bookmarks/{simulation_id}',
+            path: {
+                simulation_id: data.simulationId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Bookmark Endpoint
+     * Delete a bookmark by ID.
+     * @param data The data for the request.
+     * @param data.bookmarkId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deleteBookmarkEndpoint(data: DeleteBookmarkEndpointData): CancelablePromise<DeleteBookmarkEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/bookmarks/{bookmark_id}',
+            path: {
+                bookmark_id: data.bookmarkId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Messages By Tree Endpoint
+     * @param data The data for the request.
+     * @param data.simulationId
+     * @param data.messageId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getMessagesByTreeEndpoint(data: GetMessagesByTreeEndpointData): CancelablePromise<GetMessagesByTreeEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/trees/{simulation_id}/messages/traversal',
+            path: {
+                simulation_id: data.simulationId
+            },
+            query: {
+                message_id: data.messageId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Dummy Context History
      * Get the current context history for the legal case.
      * For now, returns a pregenerated string.
      * @returns ContextResponse Successful Response
      * @throws ApiError
      */
-    public static getContextHistory1(): CancelablePromise<GetContextHistory1Response> {
+    public static getDummyContextHistory(): CancelablePromise<GetDummyContextHistoryResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/context'
+            url: '/api/v1/dummy_context'
         });
     }
     
@@ -452,6 +649,22 @@ export class DefaultService {
             errors: {
                 422: 'Validation Error'
             }
+        });
+    }
+}
+
+export class UtilsService {
+    /**
+     * Health Check
+     * Health check endpoint for monitoring and load balancers.
+     * Returns a simple OK status to indicate the service is running.
+     * @returns string Successful Response
+     * @throws ApiError
+     */
+    public static healthCheck(): CancelablePromise<UtilsHealthCheckResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/utils/health-check'
         });
     }
 }

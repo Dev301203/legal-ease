@@ -437,6 +437,28 @@ def get_case_with_simulations(case_id: int, session: Session = Depends(get_sessi
     }
 
 
+@router.delete("/cases/{case_id}")
+def delete_case(
+    case_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Delete a case by ID.
+    All related simulations, documents, messages, and bookmarks will be automatically deleted
+    via CASCADE constraints.
+    """
+    # Fetch case
+    case = session.exec(select(Case).where(Case.id == case_id)).first()
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case with id {case_id} not found.")
+
+    # Delete the case (cascading deletes will handle related records)
+    session.delete(case)
+    session.commit()
+
+    return {"message": f"Case with id {case_id} deleted successfully"}
+
+
 class CaseUpdate(BaseModel):
     party_a: Optional[str] = None
     party_b: Optional[str] = None
@@ -552,7 +574,7 @@ def get_simulation_endpoint(
     simulation = db.get(Simulation, simulation_id)
     if not simulation:
         raise HTTPException(status_code=404, detail=f"Simulation with id {simulation_id} not found")
-    
+
     return SimulationResponse(
         id=simulation.id,
         headline=simulation.headline,
@@ -560,6 +582,27 @@ def get_simulation_endpoint(
         created_at=simulation.created_at,
         case_id=simulation.case_id
     )
+
+
+@router.delete("/simulations/{simulation_id}")
+def delete_simulation(
+    simulation_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Delete a simulation by ID.
+    All related messages and bookmarks will be automatically deleted via CASCADE constraints.
+    """
+    # Fetch simulation
+    simulation = session.exec(select(Simulation).where(Simulation.id == simulation_id)).first()
+    if not simulation:
+        raise HTTPException(status_code=404, detail=f"Simulation with id {simulation_id} not found.")
+
+    # Delete the simulation (cascading deletes will handle related records)
+    session.delete(simulation)
+    session.commit()
+
+    return {"message": f"Simulation with id {simulation_id} deleted successfully"}
 
 
 @router.post("/bookmarks", response_model=BookmarkResponse)

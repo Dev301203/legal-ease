@@ -9,13 +9,17 @@ import {
   Dialog,
   Heading,
   HStack,
+  Icon,
+  IconButton,
+  SimpleGrid,
   Text,
   Textarea,
   VStack,
   Spinner,
 } from "@chakra-ui/react"
-import { FiPlus } from "react-icons/fi"
+import { FiPlus, FiTrash2, FiX } from "react-icons/fi"
 import { DefaultService } from "../client"
+import { toaster } from "@/components/ui/toaster"
 
 interface CaseSearchParams {
   id?: string
@@ -73,6 +77,9 @@ function CasePage() {
   const [simulationTitle, setSimulationTitle] = useState("")
   const [simulationBrief, setSimulationBrief] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [simulationToDelete, setSimulationToDelete] = useState<Simulation | null>(null)
 
 // const [recognition, setRecognition] = useState<any>(null)
 const [isRecording, setIsRecording] = useState(false)
@@ -406,6 +413,47 @@ useEffect(() => {
     setIsGenerating(false)
   }
 
+  const handleDeleteClick = (e: React.MouseEvent, simulation: Simulation) => {
+    e.stopPropagation() // Prevent card click navigation
+    setSimulationToDelete(simulation)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!simulationToDelete || !caseData) return
+
+    try {
+      await DefaultService.deleteSimulation({ simulationId: Number(simulationToDelete.id) })
+
+      // Remove from local state
+      setCaseData({
+        ...caseData,
+        simulations: caseData.simulations.filter(s => s.id !== simulationToDelete.id)
+      })
+
+      toaster.create({
+        title: "Simulation deleted",
+        description: `"${simulationToDelete.headline}" has been deleted successfully.`,
+        type: "success",
+      })
+    } catch (error) {
+      console.error("Error deleting simulation:", error)
+      toaster.create({
+        title: "Error",
+        description: "Failed to delete simulation. Please try again.",
+        type: "error",
+      })
+    } finally {
+      setIsDeleteDialogOpen(false)
+      setSimulationToDelete(null)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setIsDeleteDialogOpen(false)
+    setSimulationToDelete(null)
+  }
+
   if (loading) {
     return (
       <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center">
@@ -596,15 +644,15 @@ useEffect(() => {
             </Button>
           </HStack>
 
-          <VStack width="100%" gap={4}>
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={6} width="100%">
             {caseData.simulations.map((simulation) => (
               <Card.Root
                 key={simulation.id}
-                width="100%"
                 bg="white"
                 cursor="pointer"
-                _hover={{ shadow: "md" }}
+                _hover={{ transform: "scale(1.02)", shadow: "lg" }}
                 transition="all 0.2s"
+                position="relative"
                 onClick={() =>
                   navigate({
                     to: "/scenario",
@@ -616,13 +664,13 @@ useEffect(() => {
                 }
               >
                 <Card.Body>
-                  <VStack alignItems="flex-start" gap={3}>
-                    <Text fontSize="md" fontWeight="medium" color="#3A3A3A">
+                  <VStack alignItems="flex-start" gap={4} height="200px">
+                    <Text fontSize="xl" fontWeight="medium" color="#3A3A3A" lineClamp={3}>
                       {simulation.headline}
                     </Text>
 
-                    <HStack gap={6} fontSize="sm" color="#999">
-                      <Text>
+                    <VStack alignItems="flex-start" gap={2} flex={1}>
+                      <Text fontSize="sm" color="#666">
                         Created:{" "}
                         {simulation.created_at.toLocaleDateString("en-US", {
                           month: "short",
@@ -630,12 +678,50 @@ useEffect(() => {
                           year: "numeric",
                         })}
                       </Text>
-                    </HStack>
+                    </VStack>
+
+                    <IconButton
+                      aria-label="Delete simulation"
+                      size="sm"
+                      variant="ghost"
+                      position="absolute"
+                      bottom={2}
+                      right={2}
+                      onClick={(e) => handleDeleteClick(e, simulation)}
+                      color="#666"
+                      _hover={{ bg: "red.50", color: "red.600" }}
+                    >
+                      <FiTrash2 />
+                    </IconButton>
                   </VStack>
                 </Card.Body>
               </Card.Root>
             ))}
-          </VStack>
+
+            {/* New Simulation Card */}
+            <Card.Root
+              cursor="pointer"
+              onClick={handleNewSimulation}
+              _hover={{ transform: "scale(1.02)", shadow: "lg" }}
+              transition="all 0.2s"
+              bg="transparent"
+              borderWidth="2px"
+              borderStyle="dashed"
+              borderColor="#D3D3D3"
+            >
+              <Card.Body>
+                <VStack
+                  height="200px"
+                  justifyContent="center"
+                  alignItems="center"
+                >
+                  <Text fontSize="6xl" color="#3A3A3A">
+                    +
+                  </Text>
+                </VStack>
+              </Card.Body>
+            </Card.Root>
+          </SimpleGrid>
         </VStack>
       </Container>
 
@@ -817,6 +903,48 @@ useEffect(() => {
                 loadingText="Generating..."
               >
                 Generate
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog.Root
+        open={isDeleteDialogOpen}
+        onOpenChange={(e) => setIsDeleteDialogOpen(e.open)}
+      >
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.Header>
+              <Dialog.Title>Delete Simulation</Dialog.Title>
+              <Dialog.CloseTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelDelete}
+                  position="absolute"
+                  top={4}
+                  right={4}
+                >
+                  <Icon as={FiX} />
+                </Button>
+              </Dialog.CloseTrigger>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Text>
+                Are you sure you want to delete "{simulationToDelete?.headline}"? This will also delete all associated messages and bookmarks. This action cannot be undone.
+              </Text>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button
+                bg="red.600"
+                color="white"
+                _hover={{ bg: "red.700" }}
+                onClick={handleConfirmDelete}
+              >
+                Delete
               </Button>
             </Dialog.Footer>
           </Dialog.Content>

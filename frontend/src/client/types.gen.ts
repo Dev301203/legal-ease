@@ -18,9 +18,21 @@ export type Body_upload_audio = {
     audio_file: (Blob | File);
 };
 
+export type BookmarkCreate = {
+    simulation_id: number;
+    message_id: number;
+    name: string;
+};
+
+export type BookmarkResponse = {
+    id: number;
+    simulation_id: number;
+    message_id: number;
+    name: string;
+};
+
 export type CaseCreate = {
     name: string;
-    summary?: (string | null);
     party_a?: (string | null);
     party_b?: (string | null);
     context?: (string | null);
@@ -50,8 +62,9 @@ export type ContextResponse = {
 
 export type ContinueConversationRequest = {
     case_id: number;
+    message_id?: (number | null);
     tree_id?: (number | null);
-    simulation_goal?: string;
+    refresh?: boolean;
 };
 
 export type HTTPValidationError = {
@@ -71,21 +84,26 @@ export type ModelRequest = {
     question: string;
 };
 
-export type TreeNode = {
-    speaker: string;
-    line: string;
-    level: number;
-    reflects_personality: string;
-    responses?: Array<TreeNode>;
+export type SimulationCreate = {
+    headline: string;
+    brief: string;
+    case_id: number;
 };
 
-export type TreeResponse = {
-    tree_id?: (number | null);
+export type SimulationResponse = {
+    id: number;
+    headline: string;
+    brief: string;
+    created_at: string;
     case_id: number;
-    simulation_goal: string;
-    scenarios_tree: TreeNode;
-    error?: (string | null);
-    raw_response?: (string | null);
+};
+
+export type SummarizedMessageRequest = {
+    simulation_id: number;
+    parent_id: (number | null);
+    user_input: string;
+    role: string;
+    desired_length?: number;
 };
 
 export type ValidationError = {
@@ -122,6 +140,7 @@ export type SummarizeBackgroundData = {
 export type SummarizeBackgroundResponse = (unknown);
 
 export type GetConversationAudioData = {
+    endMessageId: number;
     treeId: number;
 };
 
@@ -131,7 +150,7 @@ export type ContinueConversationData = {
     requestBody: ContinueConversationRequest;
 };
 
-export type ContinueConversationResponse = (TreeResponse);
+export type ContinueConversationResponse = (unknown);
 
 export type GetTreeMessagesEndpointData = {
     simulationId: number;
@@ -178,10 +197,16 @@ export type CreateMessageData = {
     content: string;
     parentId: (number | null);
     role: string;
-    treeId: number;
+    simulationId: number;
 };
 
 export type CreateMessageResponse = (Message);
+
+export type CreateSummarizedMessageData = {
+    requestBody: SummarizedMessageRequest;
+};
+
+export type CreateSummarizedMessageResponse = (Message);
 
 export type GetAllCasesResponse = (Array<CaseWithTreeCount>);
 
@@ -197,6 +222,12 @@ export type GetCaseWithSimulationsData = {
 
 export type GetCaseWithSimulationsResponse = (unknown);
 
+export type DeleteCaseData = {
+    caseId: number;
+};
+
+export type DeleteCaseResponse = (unknown);
+
 export type UpdateCaseData = {
     caseId: number;
     requestBody: CaseUpdate;
@@ -204,7 +235,50 @@ export type UpdateCaseData = {
 
 export type UpdateCaseResponse = (unknown);
 
-export type GetContextHistory1Response = (ContextResponse);
+export type CreateSimulationEndpointData = {
+    requestBody: SimulationCreate;
+};
+
+export type CreateSimulationEndpointResponse = (SimulationResponse);
+
+export type GetSimulationEndpointData = {
+    simulationId: number;
+};
+
+export type GetSimulationEndpointResponse = (SimulationResponse);
+
+export type DeleteSimulationData = {
+    simulationId: number;
+};
+
+export type DeleteSimulationResponse = (unknown);
+
+export type CreateBookmarkEndpointData = {
+    requestBody: BookmarkCreate;
+};
+
+export type CreateBookmarkEndpointResponse = (BookmarkResponse);
+
+export type GetBookmarksBySimulationEndpointData = {
+    simulationId: number;
+};
+
+export type GetBookmarksBySimulationEndpointResponse = (Array<BookmarkResponse>);
+
+export type DeleteBookmarkEndpointData = {
+    bookmarkId: number;
+};
+
+export type DeleteBookmarkEndpointResponse = (unknown);
+
+export type GetMessagesByTreeEndpointData = {
+    messageId?: (number | null);
+    simulationId: number;
+};
+
+export type GetMessagesByTreeEndpointResponse = (unknown);
+
+export type GetDummyContextHistoryResponse = (ContextResponse);
 
 export type UploadAudioData = {
     formData: Body_upload_audio;
@@ -225,3 +299,7 @@ export type GenerateAudioResponseData = {
 };
 
 export type GenerateAudioResponseResponse = (unknown);
+
+export type UtilsHealthCheckResponse = ({
+    [key: string]: (string);
+});
