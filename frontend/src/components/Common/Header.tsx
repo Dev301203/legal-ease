@@ -29,27 +29,14 @@ export default function Header() {
 
     // Add Case if we're on case or scenario page
     if (pathname === "/case" || pathname === "/scenario") {
-      const search = location.search as { id?: string }
+      const search = location.search as { id?: string; caseId?: number; simulationId?: number }
       let caseId: string | undefined
 
       if (pathname === "/scenario") {
-        // For scenario, we need to extract the case from the simulation
-        // Mock data mapping - in production this would come from backend
-        const nodeId = search.id
-        if (nodeId) {
-          const simulationId = nodeId.match(/^(st\d+)/)?.[1]
-          const simulationToCaseMap: Record<string, string> = {
-            st1: "1",
-            st2: "1",
-            st3: "1",
-            st4: "2",
-            st5: "2",
-            st6: "3",
-            st7: "3",
-          }
-          caseId = simulationId ? simulationToCaseMap[simulationId] : undefined
-        }
+        // For scenario route, caseId is provided directly in search params
+        caseId = search.caseId ? String(search.caseId) : undefined
       } else {
+        // For case route, use the id parameter
         caseId = search.id
       }
 
@@ -71,22 +58,21 @@ export default function Header() {
 
     // Add Scenario if we're on scenario page
     if (pathname === "/scenario") {
-      const search = location.search as { id?: string }
-      const nodeId = search.id
+      const search = location.search as { caseId?: number; simulationId?: number }
+      const simulationId = search.simulationId
 
       // Mock simulation titles - in production this would come from backend
-      const simulationTitles: Record<string, string> = {
-        st1: "Mediation Session",
-        st2: "Settlement Negotiation",
-        st3: "Trial Outcome",
-        st4: "Trust Distribution",
-        st5: "Family Inheritance",
-        st6: "Valuation Negotiation",
-        st7: "Regulatory Approval",
+      const simulationTitles: Record<number, string> = {
+        1: "Mediation Session",
+        2: "Settlement Negotiation",
+        3: "Trial Outcome",
+        4: "Trust Distribution",
+        5: "Family Inheritance",
+        6: "Valuation Negotiation",
+        7: "Regulatory Approval",
       }
 
-      const simulationId = nodeId?.match(/^(st\d+)/)?.[1]
-      const scenarioTitle = simulationId ? simulationTitles[simulationId] : "Scenario"
+      const scenarioTitle = simulationId ? simulationTitles[simulationId] || "Scenario" : "Scenario"
 
       items.push({ label: scenarioTitle })
     }
