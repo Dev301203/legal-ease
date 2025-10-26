@@ -238,6 +238,137 @@ function SimulationPage() {
   const [activeTab, setActiveTab] = useState<string>("current")
   const [viewMode, setViewMode] = useState<"conversation" | "tree">("conversation")
 
+  const [isRecording, setIsRecording] = useState(false)
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([])
+
+
+  const handleStartRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    setAudioChunks(chunks);
+
+    recorder.ondataavailable = (event) => {
+      chunks.push(event.data);
+    };
+
+    recorder.start();
+    setMediaRecorder(recorder);
+    setIsRecording(true);
+  } catch (err) {
+    console.error("Microphone access denied or unavailable:", err);
+  }
+};
+
+
+function encodeWAV(audioBuffer: AudioBuffer) {
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const format = 1; // PCM
+  const bitsPerSample = 16;
+
+  const samples = interleave(audioBuffer);
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  // RIFF chunk descriptor
+  writeString(view, 0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(view, 8, "WAVE");
+
+  // fmt subchunk
+  writeString(view, 12, "fmt ");
+  view.setUint32(16, 16, true); // subchunk1 size
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);
+  view.setUint16(32, numChannels * bitsPerSample / 8, true);
+  view.setUint16(34, bitsPerSample, true);
+
+  // data subchunk
+  writeString(view, 36, "data");
+  view.setUint32(40, samples.length * 2, true);
+
+  // write PCM samples
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    let s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+
+  return new Blob([view], { type: "audio/wav" });
+}
+
+// Helper: interleave channels
+function interleave(buffer: AudioBuffer) {
+  const numChannels = buffer.numberOfChannels;
+  const length = buffer.length;
+  const result = new Float32Array(length * numChannels);
+
+  for (let i = 0; i < length; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      result[i * numChannels + ch] = buffer.getChannelData(ch)[i];
+    }
+  }
+  return result;
+}
+
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
+}
+
+
+const handleStopRecording = async () => {
+  if (mediaRecorder) {
+    mediaRecorder.onstop = async () => {
+      try {
+        // Convert recorded chunks to ArrayBuffer
+        const blob = new Blob(audioChunks);
+        const arrayBuffer = await blob.arrayBuffer();
+
+        // Decode audio
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+        // Encode to WAV
+        const wavBlob = encodeWAV(audioBuffer);
+
+        // Send to backend
+        const formData = new FormData();
+        formData.append("audio_file", wavBlob, "recording.wav");
+
+        const response = await fetch("http://localhost:8000/api/v1/transcribe-audio", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) throw new Error(`Transcription failed: ${response.status}`);
+
+        const data = await response.json();
+        const transcript = data.message;
+
+        // Instead of appending to general_notes, set it to customResponse
+        setCustomResponse(transcript);
+
+      } catch (err) {
+        console.error("Error sending audio to backend:", err);
+      } finally {
+        setIsRecording(false);
+        setAudioChunks([]);
+      }
+    };
+
+    mediaRecorder.stop();
+  }
+};
+
+
+
   // Mock: Extract simulation ID from node ID
   // In production, the backend would return this with the node data
   const getSimulationId = (nodeId: string): string => {
@@ -467,6 +598,17 @@ function SimulationPage() {
       })
     }
   }
+
+  // // Handle visualize
+  // const handleVisualize = () => {
+  //   setIsVisualizationOpen(true)
+  //   toaster.create({
+  //     title: "Visualization opened",
+  //     description: "Dialogue tree visualization is now available.",
+  //     type: "info",
+  //     duration: 2000,
+  //   })
+  // }
 
   const currentNode = getCurrentNode()
   const conversationHistory = getConversationHistory()
@@ -785,23 +927,73 @@ function SimulationPage() {
                             <Text fontSize="sm" fontWeight="semibold" color="#3A3A3A">
                               Write Your Own
                             </Text>
-                            <Textarea
-                              value={customResponse}
-                              onChange={(e) => setCustomResponse(e.target.value)}
-                              placeholder="Type your response here..."
-                              rows={4}
-                              resize="vertical"
-                            />
-                            <Button
-                              size="sm"
-                              bg="slate.500"
-                              color="white"
-                              _hover={{ bg: "slate.600" }}
-                              onClick={handleSubmitCustomResponse}
-                              disabled={!customResponse.trim()}
-                            >
-                              Submit
-                            </Button>
+
+                    <VStack align="stretch" gap={3} width="100%">
+                      <Textarea
+                        value={customResponse}
+                        onChange={(e) => setCustomResponse(e.target.value)}
+                        placeholder="Type your response here..."
+                        rows={4}
+                        resize="vertical"
+                        width="100%" // make textarea full width
+                      />
+
+                      <HStack justify="space-between" width="100%">
+                        <Button
+                          size="sm"
+                          bg="slate.500"
+                          color="white"
+                          _hover={{ bg: "slate.600" }}
+                          onClick={handleSubmitCustomResponse}
+                          disabled={!customResponse.trim()}
+                        >
+                          Submit
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          colorScheme={isRecording ? "red" : "gray"}
+                          onClick={() => {
+                            if (isRecording) handleStopRecording()
+                            else handleStartRecording()
+                          }}
+                        >
+                          {isRecording ? "Stop Recording" : "🎤 Record"}
+                        </Button>
+                      </HStack>
+                    </VStack>
+
+
+
+
+                            {/*<Textarea*/}
+                            {/*  value={customResponse}*/}
+                            {/*  onChange={(e) => setCustomResponse(e.target.value)}*/}
+                            {/*  placeholder="Type your response here..."*/}
+                            {/*  rows={4}*/}
+                            {/*  resize="vertical"*/}
+                            {/*/>*/}
+                            {/*<div flexDirection="row" alignItems="">*/}
+                            {/* <Button*/}
+                            {/*  size="sm"*/}
+                            {/*  colorScheme={isRecording ? "red" : "gray"}*/}
+                            {/*  onClick={() => {*/}
+                            {/*    if (isRecording) handleStopRecording()*/}
+                            {/*    else handleStartRecording()*/}
+                            {/*  }}*/}
+                            {/*>*/}
+                            {/*  {isRecording ? "Stop Recording" : "🎤 Record"}*/}
+                            {/*</Button>*/}
+                            {/*<Button*/}
+                            {/*  size="sm"*/}
+                            {/*  bg="slate.500"*/}
+                            {/*  color="white"*/}
+                            {/*  _hover={{ bg: "slate.600" }}*/}
+                            {/*  onClick={handleSubmitCustomResponse}*/}
+                            {/*  disabled={!customResponse.trim()}*/}
+                            {/*>*/}
+                            {/*  Submit*/}
+                            {/*</Button>*/}
                           </VStack>
                         </Card.Body>
                       </Card.Root>
@@ -859,7 +1051,7 @@ function SimulationPage() {
                         </Card.Root>
                       ))}
 
-                      {/* Custom Response Card for Party B */}
+{/* Custom Response Card for Party B */}
                       <Card.Root bg="white" border="2px solid" borderColor="salmon.500">
                         <Card.Body>
                           <VStack alignItems="flex-start" gap={3}>
@@ -873,6 +1065,16 @@ function SimulationPage() {
                               rows={4}
                               resize="vertical"
                             />
+                              <Button
+                              size="sm"
+                              colorScheme={isRecording ? "red" : "gray"}
+                              onClick={() => {
+                                if (isRecording) handleStopRecording()
+                                else handleStartRecording()
+                              }}
+                            >
+                              {isRecording ? "Stop Recording" : "🎤 Record"}
+                            </Button>
                             <Button
                               size="sm"
                               bg="salmon.500"
@@ -927,6 +1129,7 @@ function SimulationPage() {
         </Box>
       </HStack>
       </Container>
+
 
       {/* Save Scenario Modal */}
       <Dialog.Root

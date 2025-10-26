@@ -70,19 +70,39 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
         
         # Prepare the complete system message for legal simulation tree generation
         if last_message:
+            # If continuing from a previous message, use that as Level 1
             level1_instruction = f"Level 1: Use the provided last message as the Level 1 statement: \"{last_message}\"\n"
             special_note = f"\nIMPORTANT: The Level 1 node must use exactly this text: \"{last_message}\"\n"
+            # Determine the speaker based on the last message pattern
+            # If last message was from one side, the next level should be from the other
+            if "A" in last_message or last_message.startswith("Your client"):
+                next_speaker = "B"
+                follow_up_speaker = "A"
+            else:
+                next_speaker = "A"
+                follow_up_speaker = "B"
+            level2_instruction = f"Level 2: Three possible responses from \"{next_speaker}\".\n"
+            level3_instruction = f"Level 3: For each Level 2 response, provide exactly three follow-up replies from \"{follow_up_speaker}\".\n"
         else:
-            level1_instruction = "Level 1: An opening statement from the \"Player (My Lawyer)\".\n"
+            # New conversation - determine who should speak first based on context
+            level1_instruction = "Level 1: An opening statement. Based on the [CASE_BACKGROUND], determine who should initiate the negotiation:\n"
+            level1_instruction += "- If your client (Player) should initiate (e.g., making a demand, presenting evidence, proposing settlement): speaker = \"A\"\n"
+            level1_instruction += "- If the opposing side should initiate (e.g., they approach your client first, they have the burden, they sent an initial offer): speaker = \"B\"\n"
+            level1_instruction += "The decision should be realistic based on negotiation dynamics and who is most likely to reach out first given the context.\n"
             special_note = ""
+            
+            # For new conversations, alternate based on who speaks first
+            # This will be determined dynamically by the model
+            level2_instruction = "Level 2: Three possible responses. If Level 1 speaker is \"A\", Level 2 should be responses from \"B\". If Level 1 is \"B\", Level 2 should be responses from \"A\".\n"
+            level3_instruction = "Level 3: For each Level 2 response, provide exactly three follow-up replies. The speaker should alternate: if Level 2 is from \"B\", Level 3 is from \"A\"; if Level 2 is from \"A\", Level 3 is from \"B\".\n"
             
         system_message = (
             "You are an expert legal simulation generator. Your task is to create a realistic, branching dialogue tree for a legal negotiation scenario. You will be given a detailed case background and a specific simulation goal. Your output MUST be a single, valid JSON object and nothing else.\n\n"
             "[TASK_DEFINITION]\n"
             "Generate a dialogue tree exactly three (3) levels deep.\n"
             f"{level1_instruction}"
-            "Level 2: Three possible responses from the \"Opposing Counsel\".\n"
-            "Level 3: For each Level 2 response, provide exactly three follow-up replies from the \"Player (My Lawyer)\".\n"
+            f"{level2_instruction}"
+            f"{level3_instruction}"
             "The dialogue must directly reflect the facts, disputed issues, and (most importantly) the personalities described in the [CASE_BACKGROUND]. The entire negotiation must be focused on achieving the [SIMULATION_GOAL].\n\n"
             "[INPUT_CONTEXT]\n\n"
             f"[CASE_BACKGROUND]\n{case_background}\n\n"
@@ -94,37 +114,44 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
             "Do not include any text, explanations, or markdown formatting before or after the JSON object.\n"
             "The root of the JSON object must be scenarios_tree.\n"
             "Follow the schema precisely:\n"
-            "speaker: (string) \"Player (My Lawyer)\" or \"Opposing Counsel\".\n"
+            "speaker: (string) \"A\" or \"B\".\n"
             "line: (string) The text of the dialogue.\n"
             "level: (number) The depth of the node (1, 2, or 3).\n"
             "reflects_personality: (string) A brief justification of how this line reflects the facts or personality from the [CASE_BACKGROUND].\n"
             "responses: (array) An array of nested node objects. Level 3 nodes must have an empty [] responses array.\n\n"
             "[SCHEMA_DEFINITION]\n"
+            "The speaker at Level 1 can be either \"A\" or \"B\" based on the context.\n"
+            "Level 2 speaker must be the opposite of Level 1.\n"
+            "Level 3 speaker must be the opposite of Level 2.\n"
+            "Example where Player starts:\n"
             "{\n"
             '  "scenarios_tree": {\n'
-            '    "speaker": "Player (My Lawyer)",\n'
-            '    "line": "string",\n'
+            '    "speaker": "A",\n'
+            '    "line": "...",\n'
             '    "level": 1,\n'
-            '    "reflects_personality": "string",\n'
+            '    "reflects_personality": "...",\n'
             '    "responses": [\n'
-            '      {\n'
-            '        "speaker": "Opposing Counsel",\n'
-            '        "line": "string",\n'
-            '        "level": 2,\n'
-            '        "reflects_personality": "string",\n'
-            '        "responses": [\n'
-            '          {\n'
-            '            "speaker": "Player (My Lawyer)",\n'
-            '            "line": "string",\n'
-            '            "level": 3,\n'
-            '            "reflects_personality": "string",\n'
-            '            "responses": []\n'
-            '          }\n'
-            '        ]\n'
-            '      }\n'
+            '      {"speaker": "B", "line": "...", "level": 2, ...},\n'
+            '      {"speaker": "B", "line": "...", "level": 2, ...},\n'
+            '      {"speaker": "B", "line": "...", "level": 2, ...}\n'
             '    ]\n'
             '  }\n'
-            "}"
+            "}\n\n"
+            "Example where B starts:\n"
+            "{\n"
+            '  "scenarios_tree": {\n'
+            '    "speaker": "B",\n'
+            '    "line": "...",\n'
+            '    "level": 1,\n'
+            '    "reflects_personality": "...",\n'
+            '    "responses": [\n'
+            '      {"speaker": "A", "line": "...", "level": 2, ...},\n'
+            '      {"speaker": "A", "line": "...", "level": 2, ...},\n'
+            '      {"speaker": "A", "line": "...", "level": 2, ...}\n'
+            '    ]\n'
+            '  }\n'
+            "}\n"
+            "Each Level 2 response contains 3 Level 3 responses in its \"responses\" array."
         )
         
         # Create the conversation with the AI model
@@ -158,7 +185,7 @@ def create_tree(case_background: str, previous_statements: str, simulation_goal:
                 "error": f"Failed to parse JSON response: {str(e)}",
                 "raw_response": tree_content,
                 "scenarios_tree": {
-                    "speaker": "Player (My Lawyer)",
+                    "speaker": "A",
                     "line": "Error: Could not generate proper dialogue tree",
                     "level": 1,
                     "reflects_personality": "System error occurred",
@@ -187,7 +214,7 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
         # Save Level 1 message (root)
         level1_msg = Message(
             content=scenarios_tree.get("line", ""),
-            role=scenarios_tree.get("speaker", "Player (My Lawyer)"),
+            role=scenarios_tree.get("speaker", "A"),
             tree_id=tree.id,
             parent_id=0,  # Root message has parent_id 0
             selected=True
@@ -196,14 +223,14 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
         session.commit()
         session.refresh(level1_msg)
         
-        # Save Level 2 messages (opposing counsel responses)
+        # Save Level 2 messages (B responses)
         level2_messages = []
         level2_responses = scenarios_tree.get("responses", [])
         
         for i, level2_response in enumerate(level2_responses):
             level2_msg = Message(
                 content=level2_response.get("line", ""),
-                role=level2_response.get("speaker", "Opposing Counsel"),
+                role=level2_response.get("speaker", "B"),
                 tree_id=tree.id,
                 parent_id=level1_msg.id,
                 selected=True
@@ -222,7 +249,7 @@ def save_tree_to_database(session: Session, case_id: int, tree_data: Dict[str, A
                 for level3_response in level3_responses:
                     level3_msg = Message(
                         content=level3_response.get("line", ""),
-                        role=level3_response.get("speaker", "Player (My Lawyer)"),
+                        role=level3_response.get("speaker", "A"),
                         tree_id=tree.id,
                         parent_id=level2_msg.id,
                         selected=True
@@ -258,7 +285,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             # Save Level 1 message as root (parent_id=None)
             level1_msg = Message(
                 content=scenarios_tree.get("line", ""),
-                role=scenarios_tree.get("speaker", "Player (My Lawyer)"),
+                role=scenarios_tree.get("speaker", "A"),
                 tree_id=tree_id,
                 parent_id=None,  # Root message
                 selected=True
@@ -267,14 +294,14 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             session.commit()
             session.refresh(level1_msg)
             
-            # Save Level 2 messages (opposing counsel responses)
+            # Save Level 2 messages (B responses)
             level2_messages = []
             level2_responses = scenarios_tree.get("responses", [])
             
             for level2_response in level2_responses:
                 level2_msg = Message(
                     content=level2_response.get("line", ""),
-                    role=level2_response.get("speaker", "Opposing Counsel"),
+                    role=level2_response.get("speaker", "B"),
                     tree_id=tree_id,
                     parent_id=level1_msg.id,
                     selected=False  # Not selected by default
@@ -293,7 +320,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                     for level3_response in level3_responses:
                         level3_msg = Message(
                             content=level3_response.get("line", ""),
-                            role=level3_response.get("speaker", "Player (My Lawyer)"),
+                            role=level3_response.get("speaker", "A"),
                             tree_id=tree_id,
                             parent_id=level2_msg.id,
                             selected=False  # Not selected by default
@@ -315,7 +342,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             # Save Level 1 message as child of last_message
             level1_msg = Message(
                 content=scenarios_tree.get("line", ""),
-                role=scenarios_tree.get("speaker", "Player (My Lawyer)"),
+                role=scenarios_tree.get("speaker", "A"),
                 tree_id=tree_id,
                 parent_id=last_message_id,
                 selected=False  # Not selected by default
@@ -324,14 +351,14 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
             session.commit()
             session.refresh(level1_msg)
             
-            # Save Level 2 messages (opposing counsel responses)
+            # Save Level 2 messages (B responses)
             level2_messages = []
             level2_responses = scenarios_tree.get("responses", [])
             
             for level2_response in level2_responses:
                 level2_msg = Message(
                     content=level2_response.get("line", ""),
-                    role=level2_response.get("speaker", "Opposing Counsel"),
+                    role=level2_response.get("speaker", "B"),
                     tree_id=tree_id,
                     parent_id=level1_msg.id,
                     selected=False  # Not selected by default
@@ -350,7 +377,7 @@ def save_messages_to_tree(session: Session, case_id: int, tree_data: Dict[str, A
                     for level3_response in level3_responses:
                         level3_msg = Message(
                             content=level3_response.get("line", ""),
-                            role=level3_response.get("speaker", "Player (My Lawyer)"),
+                            role=level3_response.get("speaker", "A"),
                             tree_id=tree_id,
                             parent_id=level2_msg.id,
                             selected=False  # Not selected by default

@@ -329,7 +329,6 @@ def create_message(
 
 class CaseCreate(BaseModel):
     name: str
-    summary: Optional[str] = None
     party_a: Optional[str] = None
     party_b: Optional[str] = None
     context: Optional[str] = None
@@ -354,10 +353,7 @@ async def create_case(
             "general_notes": ""
         })
 
-    try:
-        summary = await summarize_background_helper(case_data.context, desired_lines=30)
-    except Exception as e:
-        summary = ""
+    summary = ""
     
     # Create new case
     new_case = Case(
@@ -370,7 +366,6 @@ async def create_case(
     )
 
     db.add(new_case)
-    print(new_case)
     db.commit()
     db.refresh(new_case)
     
@@ -531,8 +526,17 @@ async def update_case(
         case.summary = ""
     
     session.add(case)
-    print(case)
     session.commit()
     session.refresh(case)
 
-    return {"message": "Case updated successfully", "case_id": case.id}
+    # Return the updated case data including the regenerated summary
+    return CaseWithTreeCount(
+        id=case.id,
+        name=case.name,
+        party_a=case.party_a,
+        party_b=case.party_b,
+        context=case.context,
+        summary=case.summary,
+        last_modified=case.last_modified,
+        scenario_count=0  # We could compute this if needed
+    )
