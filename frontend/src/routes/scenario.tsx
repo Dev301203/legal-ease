@@ -423,16 +423,6 @@ function SimulationPage() {
     setCustomResponse("")
   }
 
-  // Handle going back one step
-  const handleBackOne = () => {
-    const history = getConversationHistory()
-    if (history.length > 1) {
-      // Navigate to the parent node (second-to-last in history)
-      const parentNode = history[history.length - 2]
-      handleNavigateToNode(parentNode.id)
-    }
-  }
-
   // Handle save scenario
   const handleSaveScenario = () => {
     if (!scenarioName.trim()) return

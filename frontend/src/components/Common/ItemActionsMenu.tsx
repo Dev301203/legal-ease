@@ -1,15 +1,15 @@
 import { IconButton } from "@chakra-ui/react"
 import { BsThreeDotsVertical } from "react-icons/bs"
-import type { ItemPublic } from "@/client"
-import DeleteItem from "../Items/DeleteItem"
-import EditItem from "../Items/EditItem"
+// import type { ItemPublic } from "@/client"
+// import DeleteItem from "../Items/DeleteItem"
+// import EditItem from "../Items/EditItem"
 import { MenuContent, MenuRoot, MenuTrigger } from "../ui/menu"
 
 interface ItemActionsMenuProps {
-  item: ItemPublic
+  // item: ItemPublic
 }
 
-export const ItemActionsMenu = ({ item }: ItemActionsMenuProps) => {
+export const ItemActionsMenu = ({}: ItemActionsMenuProps) => {
   return (
     <MenuRoot>
       <MenuTrigger asChild>
@@ -18,8 +18,8 @@ export const ItemActionsMenu = ({ item }: ItemActionsMenuProps) => {
         </IconButton>
       </MenuTrigger>
       <MenuContent>
-        <EditItem item={item} />
-        <DeleteItem id={item.id} />
+        {/* <EditItem item={item} /> */}
+        {/* <DeleteItem id={item.id} /> */}
       </MenuContent>
     </MenuRoot>
   )

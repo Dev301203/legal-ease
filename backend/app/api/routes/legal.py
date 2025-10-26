@@ -42,8 +42,8 @@ Legal Context History:
 - Documents reviewed: Police report, medical records, insurance policy
 """
 
-@router.get("/context", response_model=ContextResponse)
-async def get_context_history():
+@router.get("/dummy_context", response_model=ContextResponse)
+async def get_dummy_context_history():
     """
     Get the current context history for the legal case.
     For now, returns a pregenerated string.
