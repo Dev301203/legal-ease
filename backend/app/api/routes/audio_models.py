@@ -162,7 +162,7 @@ async def summarize_background(data: str, desired_lines: int):
     return {"message": result}
 
 @router.get("/get-conversation-audio/{tree_id}")
-async def get_conversation_audio(start_message_id: int, end_message_id: int, session: Session = Depends(get_session)):
+async def get_conversation_audio(tree_id: int, end_message_id: int, session: Session = Depends(get_session)):
     """
     Takes a tree_id, for which it gets conversation history messages from the database in order.
     Returns the generated audio file as wav.
@@ -170,11 +170,11 @@ async def get_conversation_audio(start_message_id: int, end_message_id: int, ses
 
     try:
         # messages = get_messages_by_tree(session, tree_id)
-        messages = get_selected_messages_between(session, start_message_id, end_message_id)
+        messages = get_messages_by_tree(session, tree_id, end_message_id)
 
         tts_string = ""
 
-        speaker = 0
+        speaker = 0  # 0 is belinda, 1 is man_en. Pick this based on who you want to speak first.
         for message in messages:
             tts_string += "[SPEAKER" + str(speaker) + "] " + message + "\n"
             speaker = 1-speaker # alternate [SPEAKER0] and [SPEAKER1]
