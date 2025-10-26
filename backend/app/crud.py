@@ -47,35 +47,46 @@ def format_case_background_for_llm(context_json: str) -> str:
 
 
 
-def get_messages_by_tree(session: Session, tree_id: int) -> list[Message]:
-    """Retrieve messages for a tree_id in hierarchical order (DFS)."""
-    statement = select(Message).where(
-        (Message.simulation_id == tree_id)
-    )
-    messages = session.exec(statement).all()
+def get_messages_by_tree(session: Session, tree_id: int, message_id: int = None) -> str:
+    """Retrieve messages from message_id up to the root in hierarchical order.
+    If message_id is None, returns all messages in the tree."""
+    
+    if message_id is not None:
+        # Traverse up from the given message to the root
+        ordered = []
+        current_id = message_id
+        
+        while current_id is not None:
+            message = session.get(Message, current_id)
+            if not message:
+                break
+            ordered.insert(0, message)  # Insert at beginning to maintain root-to-leaf order
+            current_id = message.parent_id
+    else:
+        # Get all messages in the tree (original behavior)
+        statement = select(Message).where(Message.simulation_id == tree_id)
+        messages = session.exec(statement).all()
 
-    # Build mapping: parent_id → list of children
-    children_map = {}
-    for msg in messages:
-        children_map.setdefault(msg.parent_id, []).append(msg)
+        # Build mapping: parent_id → list of children
+        children_map = {}
+        for msg in messages:
+            children_map.setdefault(msg.parent_id, []).append(msg)
 
-    # Sort children under each parent by id for consistent order
-    for child_list in children_map.values():
-        child_list.sort(key=lambda m: m.id)
+        # Sort children under each parent by id for consistent order
+        for child_list in children_map.values():
+            child_list.sort(key=lambda m: m.id)
 
-    ordered = []
+        ordered = []
 
-    def dfs(parent_id: int | None = None):
-        for msg in children_map.get(parent_id, []):
-            ordered.append(msg)
-            dfs(msg.id)
+        def dfs(parent_id: int | None = None):
+            for msg in children_map.get(parent_id, []):
+                ordered.append(msg)
+                dfs(msg.id)
 
-    dfs(None)
-
-
-    conversation_json = messages_to_conversation(ordered).model_dump_json(
-        indent=2)
-
+        dfs(None)
+    
+    # Convert to conversation format
+    conversation_json = messages_to_conversation(ordered).model_dump_json(indent=2)
     return conversation_json
 
 def get_tree(session: Session, tree_id: int) -> list[Message]:
