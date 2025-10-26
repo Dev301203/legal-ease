@@ -20,7 +20,7 @@ import {
 } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
 import { toaster } from "@/components/ui/toaster"
-import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw, FiTrash2, FiRotateCw, FiSquare } from "react-icons/fi"
+import { FiSave, FiMic, FiPlay, FiList, FiMap, FiRefreshCw, FiTrash2, FiSquare } from "react-icons/fi"
 import type { DialogueNode, ResponseOption } from "@/types/scenario"
 import {
   loadSimulationTree,
