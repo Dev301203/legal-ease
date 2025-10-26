@@ -217,13 +217,13 @@ def update_message_selected(db: Session, message_id: int) -> Message:
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    # 1️⃣ Check if message has children (must be a leaf)
-    has_children = db.exec(select(Message).where(Message.parent_id == message_id)).first() is not None
-    if has_children:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot select this message because it has child messages"
-        )
+    # # 1️⃣ Check if message has children (must be a leaf)
+    # has_children = db.exec(select(Message).where(Message.parent_id == message_id)).first() is not None
+    # if has_children:
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail="Cannot select this message because it has child messages"
+    #     )
 
     # 2️⃣ Check if parent exists and is selected (must be on active branch)
     if message.parent_id is not None:

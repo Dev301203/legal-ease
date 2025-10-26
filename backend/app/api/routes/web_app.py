@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 
 from app.api.routes.audio_models import get_session
 from app.crud import get_messages_by_tree, get_selected_messages_between, \
@@ -11,6 +12,12 @@ from app.schemas import TreeResponse
 from app.api.routes.tree_generation import create_tree, save_messages_to_tree
 
 router = APIRouter()
+
+
+class ContinueConversationRequest(BaseModel):
+    case_id: int
+    tree_id: Optional[int] = None
+    simulation_goal: str = "Reach a favorable settlement"
 
 
 def get_last_message_id_from_tree(session: Session, tree_id: int) -> int:
@@ -62,7 +69,7 @@ def get_message_children_for_tree(session: Session, message_id: int) -> list[Mes
 
 
 @router.post("/continue-conversation", response_model=TreeResponse)
-async def continue_conversation(case_id: int, tree_id: int = None, simulation_goal: str = "Reach a favorable settlement", session: Session = Depends(get_session)):
+async def continue_conversation(request: ContinueConversationRequest, session: Session = Depends(get_session)):
     """
     Continue a conversation by either generating new messages or returning existing children.
     If tree_id is provided:
@@ -70,6 +77,9 @@ async def continue_conversation(case_id: int, tree_id: int = None, simulation_go
         - If not a leaf node, returns the existing children of the last selected message.
     If no tree_id is provided, assumes no prior history and creates a new tree.
     """
+    case_id = request.case_id
+    tree_id = request.tree_id
+    simulation_goal = request.simulation_goal
     try:
         # Get the case context
         case_background = get_case_context(session, case_id)
@@ -280,3 +290,30 @@ def select_message(message_id: int, db: Session = Depends(get_session)):
     """Mark a message as selected=True."""
     message = update_message_selected(db, message_id)
     return message
+
+
+@router.post("/messages/create", response_model=Message)
+def create_message(
+    tree_id: int,
+    parent_id: int | None,
+    content: str,
+    role: str,
+    db: Session = Depends(get_session),
+):
+    """
+    Create a new message in the conversation tree.
+    Used for custom user responses that aren't from the predefined options.
+    """
+    new_message = Message(
+        tree_id=tree_id,
+        parent_id=parent_id,
+        content=content,
+        role=role,
+        selected=True,  # Custom messages are automatically selected
+    )
+    
+    db.add(new_message)
+    db.commit()
+    db.refresh(new_message)
+    
+    return new_message
