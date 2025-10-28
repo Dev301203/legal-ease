@@ -18,7 +18,7 @@
     "@tanstack/react-router": "^1.133.32",
     "@types/dagre": "^0.7.53",
     "@xyflow/react": "^12.9.0",
-    "axios": "1.12.2",
+    "axios": "1.13.0",
     "dagre": "^0.8.5",
     "form-data": "4.0.4",
     "next-themes": "^0.4.6",
