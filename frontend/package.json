@@ -15,7 +15,7 @@
     "@emotion/react": "^11.14.0",
     "@tanstack/react-query": "^5.90.2",
     "@tanstack/react-query-devtools": "^5.90.2",
-    "@tanstack/react-router": "^1.131.50",
+    "@tanstack/react-router": "^1.133.32",
     "@types/dagre": "^0.7.53",
     "@xyflow/react": "^12.9.0",
     "axios": "1.12.2",
