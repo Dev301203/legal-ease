@@ -17,7 +17,7 @@ import {
   VStack,
   Spinner,
 } from "@chakra-ui/react"
-import { FiPlus, FiTrash2, FiX } from "react-icons/fi"
+import { FiTrash2, FiX } from "react-icons/fi"
 import { DefaultService } from "../client"
 import { toaster } from "@/components/ui/toaster"
 
